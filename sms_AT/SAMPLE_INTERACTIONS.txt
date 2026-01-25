@@ -1,0 +1,226 @@
+╔══════════════════════════════════════════════════════════════════╗
+║              USSD SAMPLE INTERACTIONS - ALL FLOWS                ║
+╚══════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════
+1️⃣  INITIAL MENU
+═══════════════════════════════════════════════════════════════════
+
+USER DIALS: *123#
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ CON Welcome to AVARA               │
+│ 1. Buy Ticket                      │
+│ 2. My Tickets                      │
+│ 3. Wallet                          │
+│ 4. Events Near Me                  │
+│ 5. Support                         │
+│ 0. Exit                            │
+└────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════
+2️⃣  BUY TICKET FLOW
+═══════════════════════════════════════════════════════════════════
+
+USER INPUTS: 1
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ CON Select Event:                  │
+│ 1. Event #25 (500 KES)            │
+│ 2. Event #26 (500 KES)            │
+│ 3. Event #27 (500 KES)            │
+│ 4. Event #22 (500 KES)            │
+│ 5. Event #23 (500 KES)            │
+│ 6. Event #24 (500 KES)            │
+│ 7. Event #19 (500 KES)            │
+│ 8. Event #21 (500 KES)            │
+│ 9. Alternative Tax Saving...      │
+│ 0. Back                            │
+└────────────────────────────────────┘
+
+---
+USER INPUTS: 1*1
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ CON Event #25                      │
+│ Price: 500 KES                     │
+│ 1. Pay with M-Pesa                │
+│ 0. Cancel                          │
+└────────────────────────────────────┘
+
+---
+USER INPUTS: 1*1*0 (Cancel)
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ END Transaction cancelled.         │
+└────────────────────────────────────┘
+✅ SESSION ENDS
+
+═══════════════════════════════════════════════════════════════════
+3️⃣  BACK NAVIGATION
+═══════════════════════════════════════════════════════════════════
+
+USER INPUTS: 1*0 (Back from event list)
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ CON Welcome to AVARA               │
+│ 1. Buy Ticket                      │
+│ 2. My Tickets                      │
+│ 3. Wallet                          │
+│ 4. Events Near Me                  │
+│ 5. Support                         │
+│ 0. Exit                            │
+└────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════
+4️⃣  MY TICKETS
+═══════════════════════════════════════════════════════════════════
+
+USER INPUTS: 2
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ END You have no tickets.           │
+└────────────────────────────────────┘
+✅ SESSION ENDS
+
+═══════════════════════════════════════════════════════════════════
+5️⃣  WALLET FLOW
+═══════════════════════════════════════════════════════════════════
+
+USER INPUTS: 3
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ CON Wallet                         │
+│ 1. Balance                         │
+│ 2. Deposit                         │
+│ 3. Withdraw                        │
+│ 0. Back                            │
+└────────────────────────────────────┘
+
+---
+USER INPUTS: 3*1 (Check balance)
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ END Your balance is 0 KES          │
+└────────────────────────────────────┘
+✅ SESSION ENDS
+
+---
+USER INPUTS: 3*0 (Back from wallet)
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ CON Welcome to AVARA               │
+│ 1. Buy Ticket                      │
+│ 2. My Tickets                      │
+│ 3. Wallet                          │
+│ 4. Events Near Me                  │
+│ 5. Support                         │
+│ 0. Exit                            │
+└────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════
+6️⃣  EVENTS NEAR ME
+═══════════════════════════════════════════════════════════════════
+
+USER INPUTS: 4
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ CON Select Region:                 │
+│ 1. Blockchain Event                │
+│ 2. Online event                    │
+│ 3. Kenyatta International...       │
+│ 4. Bazaar Plaza Moi Avenue...      │
+│ 5. Uhuru Park                      │
+│ 6. Nairobi town                    │
+│ 0. Back                            │
+└────────────────────────────────────┘
+
+---
+USER INPUTS: 4*1 (Select venue)
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ END Events in Blockchain Event:    │
+│ Event #25 - 500 KES               │
+│ Event #26 - 500 KES               │
+│ Event #27 - 500 KES               │
+│ Event #22 - 500 KES               │
+│ Event #23 - 500 KES               │
+│ Event #24 - 500 KES               │
+│ Event #19 - 500 KES               │
+│ Event #21 - 500 KES               │
+│ Event #16 - 500 KES               │
+│ Event #1 - 500 KES                │
+└────────────────────────────────────┘
+✅ SESSION ENDS
+
+═══════════════════════════════════════════════════════════════════
+7️⃣  SUPPORT
+═══════════════════════════════════════════════════════════════════
+
+USER INPUTS: 5
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ CON Support                        │
+│ 1. Request Call-Back               │
+│ 2. Report Issue                    │
+│ 0. Back                            │
+└────────────────────────────────────┘
+
+---
+USER INPUTS: 5*1 (Request callback)
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ END We will call you shortly.      │
+└────────────────────────────────────┘
+✅ SESSION ENDS
+
+═══════════════════════════════════════════════════════════════════
+8️⃣  EXIT
+═══════════════════════════════════════════════════════════════════
+
+USER INPUTS: 0
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ END Thank you for using AVARA      │
+└────────────────────────────────────┘
+✅ SESSION ENDS
+
+═══════════════════════════════════════════════════════════════════
+9️⃣  ERROR HANDLING
+═══════════════════════════════════════════════════════════════════
+
+USER INPUTS: 99 (Invalid option)
+
+USSD RESPONSE:
+┌────────────────────────────────────┐
+│ END Invalid option                 │
+└────────────────────────────────────┘
+✅ SESSION ENDS
+
+═══════════════════════════════════════════════════════════════════
+
+🎯 KEY OBSERVATIONS:
+
+✅ CON prefix = Session continues (user can input more)
+✅ END prefix = Session terminates (no more input)
+✅ All "Back" options return to main menu with CON
+✅ All exit points use END message
+✅ Events loaded dynamically from server
+✅ Prices displayed correctly (500 KES default)
+✅ Error handling terminates with END message
+
+═══════════════════════════════════════════════════════════════════
