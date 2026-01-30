@@ -145,20 +145,30 @@ const QuantumEventCreator = () => {
 
     // Pre-fill form if in edit mode
     if (editMode && editingEvent) {
+      // Format date for datetime-local input (YYYY-MM-DDTHH:mm)
+      let formattedDate = '';
+      if (editingEvent.date) {
+        // Check if it's already ISO or date string
+        const dateObj = new Date(editingEvent.date);
+        if (!isNaN(dateObj.getTime())) {
+          formattedDate = dateObj.toISOString().slice(0, 16);
+        }
+      }
+
       setFormData({
         eventName: editingEvent.name || '',
-        eventDate: editingEvent.date || '',
-        venue: editingEvent.location || '', // Assuming 'location' maps to 'venue'
-        regularPrice: editingEvent.ticketTypes?.Regular?.price || '',
-        vipPrice: editingEvent.ticketTypes?.VIP?.price || '',
-        vvipPrice: editingEvent.ticketTypes?.VVIP?.price || '',
+        eventDate: formattedDate,
+        venue: editingEvent.venue || editingEvent.location || 'Online / TBD', // Fallback for missing venue
+        regularPrice: editingEvent.ticketTypes?.Regular?.price || editingEvent.regularPrice || '', // Try multiple sources
+        vipPrice: editingEvent.ticketTypes?.VIP?.price || editingEvent.vipPrice || '',
+        vvipPrice: editingEvent.ticketTypes?.VVIP?.price || editingEvent.vvipPrice || '',
         description: editingEvent.description || ''
       });
 
       if (editingEvent.poap) {
         setIncludePoap(true);
         setPoapData({
-          image: null, // Cannot pre-fill file object, but logic handles update
+          image: null,
           expiryDate: editingEvent.poap.expiryDate || '',
           supplyType: editingEvent.poap.supplyType || 'limitless',
           supplyCount: editingEvent.poap.supplyCount || ''
@@ -532,25 +542,6 @@ const QuantumEventCreator = () => {
           </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-8 sm:mb-12">
-          <div className="bg-gradient-to-br from-purple-600/20 to-purple-900/20 rounded-xl p-4 sm:p-6 backdrop-blur-sm border border-purple-500/30 hover:scale-105 transition-transform duration-300">
-            <Users className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 mb-2" />
-            <p className="text-xl sm:text-2xl font-bold text-white">10k+</p>
-            <p className="text-xs sm:text-sm text-gray-400">Active Users</p>
-          </div>
-          <div className="bg-gradient-to-br from-blue-600/20 to-blue-900/20 rounded-xl p-4 sm:p-6 backdrop-blur-sm border border-blue-500/30 hover:scale-105 transition-transform duration-300">
-            <Ticket className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 mb-2" />
-            <p className="text-xl sm:text-2xl font-bold text-white">500+</p>
-            <p className="text-xs sm:text-sm text-gray-400">Events Created</p>
-          </div>
-          <div className="bg-gradient-to-br from-green-600/20 to-green-900/20 rounded-xl p-4 sm:p-6 backdrop-blur-sm border border-green-500/30 hover:scale-105 transition-transform duration-300">
-            <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-green-400 mb-2" />
-            <p className="text-xl sm:text-2xl font-bold text-white">$2M+</p>
-            <p className="text-xs sm:text-sm text-gray-400">Total Volume</p>
-          </div>
-        </div>
-
         {/* Main Form */}
         <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
           {/* Basic Information Card */}
@@ -874,11 +865,11 @@ const QuantumEventCreator = () => {
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       Supply Limit
                     </label>
-                    <div className="flex items-center space-x-4 mb-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-3">
                       <button
                         type="button"
                         onClick={() => setPoapData(prev => ({ ...prev, supplyType: 'limitless' }))}
-                        className={`flex-1 py-2 px-4 rounded-lg border transition-all ${poapData.supplyType === 'limitless'
+                        className={`w-full sm:flex-1 py-2 px-4 rounded-lg border transition-all ${poapData.supplyType === 'limitless'
                           ? 'bg-purple-600/20 border-purple-500 text-purple-400'
                           : 'border-gray-700 text-gray-400 hover:border-gray-600'
                           }`}
@@ -891,7 +882,7 @@ const QuantumEventCreator = () => {
                       <button
                         type="button"
                         onClick={() => setPoapData(prev => ({ ...prev, supplyType: 'limited' }))}
-                        className={`flex-1 py-2 px-4 rounded-lg border transition-all ${poapData.supplyType === 'limited'
+                        className={`w-full sm:flex-1 py-2 px-4 rounded-lg border transition-all ${poapData.supplyType === 'limited'
                           ? 'bg-purple-600/20 border-purple-500 text-purple-400'
                           : 'border-gray-700 text-gray-400 hover:border-gray-600'
                           }`}
