@@ -307,43 +307,8 @@ const QuantumTicketResale = () => {
             </div>
           </div>
 
-          {!isConnected ? (
-            <button
-              onClick={handleConnectWallet}
-              disabled={isConnecting}
-              className="w-full group relative px-4 sm:px-6 py-3 sm:py-4 rounded-xl overflow-hidden mb-4 sm:mb-6"
-            >
-              <div
-                className="absolute inset-0 bg-gradient-to-r from-purple-600 to-blue-600 
-                  group-hover:from-purple-500 group-hover:to-blue-500 transition-colors duration-300"
-              />
-              <div className="relative z-10 flex items-center justify-center space-x-2">
-                {isConnecting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wallet className="w-5 h-5" />}
-                <span>{isConnecting ? "Connecting..." : "Connect Wallet"}</span>
-              </div>
-            </button>
-          ) : (
-            <div className="mb-6">
-              <div
-                className="flex items-center justify-between p-4 rounded-xl bg-purple-500/10 
-                  border border-purple-500/30"
-              >
-                <div className="flex items-center space-x-2">
-                  <Wallet className="w-5 h-5 text-purple-400" />
-                  <span className="text-sm">{formatAddress(walletAddress)}</span>
-                </div>
-                <button
-                  className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
-                  onClick={disconnectWallet}
-                >
-                  Disconnect
-                </button>
-              </div>
-            </div>
-          )}
-
           {activeTab === "resell" && (
-            <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl border border-purple-500/30 p-8">
+            <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl border border-purple-500/30 p-8 mb-6 md:mb-8">
               <h2 className="text-2xl font-bold mb-4">Resell Your Ticket</h2>
               <p className="text-gray-400 mb-6">List your ticket for resale on the marketplace</p>
               <div className="grid gap-4">
@@ -398,7 +363,7 @@ const QuantumTicketResale = () => {
           )}
 
           {activeTab === "buy" && (
-            <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl border border-purple-500/30 p-8">
+            <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl border border-purple-500/30 p-8 mb-6 md:mb-8">
               <h2 className="text-2xl font-bold mb-4">Buy Resale Tickets</h2>
               <p className="text-gray-400 mb-6">Purchase tickets listed for resale by other users</p>
               <div className="grid gap-4">
