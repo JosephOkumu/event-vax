@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Ticket, Sparkles, Wallet, Plus, DollarSign, Users, Clock, Star, Zap } from "lucide-react";
+import { Calendar, MapPin, Ticket, Sparkles, Wallet, Plus, DollarSign, Users, Clock, Star, Zap, Award, Upload, Infinity } from "lucide-react";
 import { ethers } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
 import { EventFactoryABI, TicketNFTABI } from '../abi';
@@ -100,6 +100,42 @@ const QuantumEventCreator = () => {
   const [flyerPreview, setFlyerPreview] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadError, setUploadError] = useState('');
+
+  // POAP State
+  const [includePoap, setIncludePoap] = useState(false);
+  const [poapData, setPoapData] = useState({
+    image: null,
+    expiryDate: '',
+    supplyType: 'limitless', // 'limitless' or 'limited'
+    supplyCount: ''
+  });
+  const [poapPreview, setPoapPreview] = useState(null);
+  const [poapError, setPoapError] = useState('');
+
+  const handlePoapChange = (e) => {
+    const { name, value } = e.target;
+    setPoapData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handlePoapImageUpload = (file) => {
+    if (file && validateImage(file)) {
+      setPoapData(prev => ({ ...prev, image: file }));
+      const previewUrl = URL.createObjectURL(file);
+      setPoapPreview(previewUrl);
+      setPoapError('');
+    } else {
+      setPoapError('Invalid image file');
+    }
+  };
+
+  const removePoapImage = () => {
+    setPoapData(prev => ({ ...prev, image: null }));
+    setPoapPreview(null);
+    setPoapError('');
+  };
 
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 1500);
@@ -298,7 +334,11 @@ const QuantumEventCreator = () => {
         flyerImage: flyerImageBase64,
         creatorAddress: walletAddress,
         blockchainTxHash: tx.hash,
-        blockchainEventId: blockchainEventId
+        blockchainEventId: blockchainEventId,
+        poap: includePoap ? {
+          ...poapData,
+          image: poapData.image ? poapPreview : null // Simplified for now, real implementation would upload to IPFS
+        } : null
       };
 
       // Send to backend API
@@ -704,6 +744,142 @@ const QuantumEventCreator = () => {
             </div>
           </div>
 
+          {/* POAP Section */}
+          <div className="bg-gray-900/30 backdrop-blur-xl rounded-2xl border border-purple-500/30 p-4 sm:p-6 lg:p-8 hover:border-purple-500/50 transition-all duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold flex items-center">
+                <Award className="w-5 h-5 sm:w-6 sm:h-6 mr-2 text-purple-400" />
+                Proof of Attendance Protocol (POAP)
+              </h2>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="includePoap"
+                  checked={includePoap}
+                  onChange={(e) => setIncludePoap(e.target.checked)}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="includePoap"
+                  className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none cursor-pointer ${includePoap ? 'bg-purple-600' : 'bg-gray-700'
+                    }`}
+                >
+                  <span
+                    className={`inline-block w-4 h-4 transform transition-transform bg-white rounded-full ${includePoap ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </label>
+                <label htmlFor="includePoap" className="ml-3 text-sm font-medium text-gray-300 cursor-pointer">
+                  Include POAPs
+                </label>
+              </div>
+            </div>
+
+            {includePoap && (
+              <div className="space-y-6 animate-fade-in-down">
+                <p className="text-sm text-gray-400 mb-4">
+                  Reward your attendees with a unique digital collectible to commemorate their participation.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* POAP Image Upload */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      POAP Artwork *
+                    </label>
+                    {!poapPreview ? (
+                      <div className="relative border-2 border-dashed border-gray-700 rounded-xl p-8 text-center hover:border-purple-500/50 hover:bg-gray-800/30 transition-all duration-300">
+                        <input
+                          type="file"
+                          id="poap-upload"
+                          accept="image/*"
+                          onChange={(e) => handlePoapImageUpload(e.target.files[0])}
+                          className="hidden"
+                        />
+                        <label htmlFor="poap-upload" className="cursor-pointer flex flex-col items-center">
+                          <Upload className="w-8 h-8 text-purple-400 mb-2" />
+                          <span className="text-sm text-gray-300">Click to upload POAP artwork</span>
+                          <span className="text-xs text-gray-500 mt-1">Recommended: 500x500px, PNG/GIF</span>
+                        </label>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-4 p-4 bg-gray-800/30 rounded-xl border border-purple-500/20">
+                        <img src={poapPreview} alt="POAP Preview" className="w-20 h-20 rounded-full object-cover border-2 border-purple-500" />
+                        <div className="flex-1">
+                          <p className="text-sm text-white font-medium">{poapData.image?.name}</p>
+                          <button
+                            type="button"
+                            onClick={removePoapImage}
+                            className="text-xs text-red-400 hover:text-red-300 mt-1"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {poapError && <p className="text-xs text-red-400 mt-2">{poapError}</p>}
+                  </div>
+
+                  {/* Expiry Date */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Expiry Date *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      name="expiryDate"
+                      value={poapData.expiryDate}
+                      onChange={handlePoapChange}
+                      className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                    />
+                  </div>
+
+                  {/* Supply */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Supply Limit
+                    </label>
+                    <div className="flex items-center space-x-4 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setPoapData(prev => ({ ...prev, supplyType: 'limitless' }))}
+                        className={`flex-1 py-2 px-4 rounded-lg border transition-all ${poapData.supplyType === 'limitless'
+                            ? 'bg-purple-600/20 border-purple-500 text-purple-400'
+                            : 'border-gray-700 text-gray-400 hover:border-gray-600'
+                          }`}
+                      >
+                        <div className="flex items-center justify-center space-x-2">
+                          <Infinity className="w-4 h-4" />
+                          <span>Limitless</span>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPoapData(prev => ({ ...prev, supplyType: 'limited' }))}
+                        className={`flex-1 py-2 px-4 rounded-lg border transition-all ${poapData.supplyType === 'limited'
+                            ? 'bg-purple-600/20 border-purple-500 text-purple-400'
+                            : 'border-gray-700 text-gray-400 hover:border-gray-600'
+                          }`}
+                      >
+                        Specific
+                      </button>
+                    </div>
+                    {poapData.supplyType === 'limited' && (
+                      <input
+                        type="number"
+                        name="supplyCount"
+                        value={poapData.supplyCount}
+                        onChange={handlePoapChange}
+                        placeholder="Enter max supply"
+                        className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Submit Button */}
           <div className="flex justify-center">
             <button
@@ -777,7 +953,7 @@ const QuantumEventCreator = () => {
           background: #a855f7;
         }
       `}</style>
-    </div>
+    </div >
   );
 };
 
