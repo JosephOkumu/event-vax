@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Calendar, MapPin, Ticket, Sparkles, Wallet, Plus, DollarSign, Users, Clock, Star, Zap, Award, Upload, Infinity } from "lucide-react";
 import { ethers } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
@@ -83,6 +83,9 @@ FloatingParticle.propTypes = {
 
 const QuantumEventCreator = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const editMode = location.state?.mode === 'edit';
+  const editingEvent = location.state?.eventData;
   const { walletAddress, isConnected, connectWallet } = useWallet();
   const [isLoading, setIsLoading] = useState(true);
   const [scrollPosition, setScrollPosition] = useState(0);
@@ -139,7 +142,33 @@ const QuantumEventCreator = () => {
 
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 1500);
-  }, []);
+
+    // Pre-fill form if in edit mode
+    if (editMode && editingEvent) {
+      setFormData({
+        eventName: editingEvent.name || '',
+        eventDate: editingEvent.date || '',
+        venue: editingEvent.location || '', // Assuming 'location' maps to 'venue'
+        regularPrice: editingEvent.ticketTypes?.Regular?.price || '',
+        vipPrice: editingEvent.ticketTypes?.VIP?.price || '',
+        vvipPrice: editingEvent.ticketTypes?.VVIP?.price || '',
+        description: editingEvent.description || ''
+      });
+
+      if (editingEvent.poap) {
+        setIncludePoap(true);
+        setPoapData({
+          image: null, // Cannot pre-fill file object, but logic handles update
+          expiryDate: editingEvent.poap.expiryDate || '',
+          supplyType: editingEvent.poap.supplyType || 'limitless',
+          supplyCount: editingEvent.poap.supplyCount || ''
+        });
+        if (editingEvent.poap.image) {
+          setPoapPreview(editingEvent.poap.image);
+        }
+      }
+    }
+  }, [editMode, editingEvent]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -221,6 +250,12 @@ const QuantumEventCreator = () => {
     if (!isConnected) {
       alert('Please connect your wallet first!');
       await connectWallet();
+      return;
+    }
+
+    if (editMode) {
+      alert('✅ Event updated successfully! (Frontend Simulation)');
+      navigate('/event-dashboard/' + editingEvent.id);
       return;
     }
 
@@ -488,7 +523,7 @@ const QuantumEventCreator = () => {
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 relative inline-block">
             <span className="bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400
                          bg-clip-text text-transparent animate-gradient-x">
-              Create Your Quantum Event
+              {editMode ? 'Edit Your Event' : 'Create Your Quantum Event'}
             </span>
             <Sparkles className="absolute -right-6 sm:-right-8 top-0 w-5 h-5 sm:w-6 sm:h-6 text-yellow-400 animate-bounce" />
           </h1>
@@ -844,8 +879,8 @@ const QuantumEventCreator = () => {
                         type="button"
                         onClick={() => setPoapData(prev => ({ ...prev, supplyType: 'limitless' }))}
                         className={`flex-1 py-2 px-4 rounded-lg border transition-all ${poapData.supplyType === 'limitless'
-                            ? 'bg-purple-600/20 border-purple-500 text-purple-400'
-                            : 'border-gray-700 text-gray-400 hover:border-gray-600'
+                          ? 'bg-purple-600/20 border-purple-500 text-purple-400'
+                          : 'border-gray-700 text-gray-400 hover:border-gray-600'
                           }`}
                       >
                         <div className="flex items-center justify-center space-x-2">
@@ -857,8 +892,8 @@ const QuantumEventCreator = () => {
                         type="button"
                         onClick={() => setPoapData(prev => ({ ...prev, supplyType: 'limited' }))}
                         className={`flex-1 py-2 px-4 rounded-lg border transition-all ${poapData.supplyType === 'limited'
-                            ? 'bg-purple-600/20 border-purple-500 text-purple-400'
-                            : 'border-gray-700 text-gray-400 hover:border-gray-600'
+                          ? 'bg-purple-600/20 border-purple-500 text-purple-400'
+                          : 'border-gray-700 text-gray-400 hover:border-gray-600'
                           }`}
                       >
                         Specific
@@ -891,7 +926,7 @@ const QuantumEventCreator = () => {
                 style={{ background: 'linear-gradient(45deg, rgba(168,85,247,0.4) 0%, rgba(147,51,234,0.4) 100%)' }} />
               <div className="relative z-10 flex items-center justify-center space-x-2 sm:space-x-3">
                 <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="font-bold text-base sm:text-lg">Create Event</span>
+                <span className="font-bold text-base sm:text-lg">{editMode ? 'Update Event' : 'Create Event'}</span>
                 <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
               </div>
             </button>

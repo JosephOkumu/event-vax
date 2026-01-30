@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Calendar, Users, CheckCircle, MessageSquare, BarChart3,
-  TrendingUp, Eye, UserCheck, Clock, MapPin, Ticket, X, Award
+  TrendingUp, Eye, UserCheck, Clock, MapPin, Ticket, X, Award, Edit
 } from 'lucide-react';
 import { useEventData } from '../hooks/useEventData';
 import { useWallet } from '../contexts/WalletContext';
@@ -179,13 +179,23 @@ const EventDashboard = () => {
                   </div>
                   <p className="text-xs sm:text-sm text-gray-300">Event ID: {eventData.id}</p>
                 </div>
-                <button
-                  onClick={() => navigate('/profile')}
-                  className="w-full sm:w-auto px-3 sm:px-4 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30
-                    border border-purple-500/30 text-xs sm:text-sm text-purple-400 transition-all duration-300"
-                >
-                  Back to Profile
-                </button>
+                <div className="flex items-center space-x-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => navigate('/myevent', { state: { eventData, mode: 'edit' } })}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg bg-green-600/20 hover:bg-green-600/30
+                      border border-green-500/30 text-xs sm:text-sm text-green-400 transition-all duration-300 flex items-center justify-center space-x-2"
+                  >
+                    <Edit className="w-4 h-4" />
+                    <span>Edit Event</span>
+                  </button>
+                  <button
+                    onClick={() => navigate('/profile')}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30
+                      border border-purple-500/30 text-xs sm:text-sm text-purple-400 transition-all duration-300"
+                  >
+                    Back to Profile
+                  </button>
+                </div>
               </div>
             </div>
           </div>
