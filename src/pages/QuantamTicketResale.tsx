@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from "react"
 import { ethers } from "ethers"
-import { Wallet, Loader2, AlertCircle, Tag, ShoppingCart } from "lucide-react"
+import { Wallet, Loader2, AlertCircle, Tag, ShoppingCart, Search, Filter, Eye, X, Calendar, MapPin, Ticket as TicketIcon } from "lucide-react"
 import { useWallet } from '../contexts/WalletContext'
+import EventverseTicket from '../components/EventverseTicket'
 
 declare global {
   interface Window {
@@ -47,8 +48,14 @@ const QuantumTicketResale = () => {
   const [error, setError] = useState<string | null>(null)
   const [userTickets, setUserTickets] = useState<Ticket[]>([])
   const [resaleListings, setResaleListings] = useState<ResaleListing[]>([])
+  // 'selectedTicket' used for Resell Tab (listing item) - though with new UI we might pass directly
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
-  const [resalePrice, setResalePrice] = useState("")
+
+  // New States for Features
+  const [viewTicket, setViewTicket] = useState<ResaleListing | Ticket | null>(null) // For Modal
+  const [searchQuery, setSearchQuery] = useState("")
+  const [sortBy, setSortBy] = useState("newest") // newest, price_asc, price_desc
+
   const [activeTab, setActiveTab] = useState("resell")
 
   useEffect(() => {
@@ -184,25 +191,28 @@ const QuantumTicketResale = () => {
     }
   }
 
-  const handleListForResale = async () => {
-    if (!selectedTicket || !resalePrice) return
-
+  const handleListForResale = async (ticket: Ticket) => {
     try {
       setIsLoading(true)
       setError(null)
+
+      // SYSTEM DETERMINED PRICE LOGIC
+      // For demo purposes, we set a standard resale price or calculate based on ticket type
+      // Real implementation might fetch this from an oracle or contract constant
+      const SYSTEM_PRICE = "0.5"; // 0.5 AVAX fixed system price for now
 
       const provider = new ethers.BrowserProvider(window.ethereum!)
       const signer = await provider.getSigner()
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
 
-      const priceInWei = ethers.parseEther(resalePrice)
-      const tx = await contract.listTicketForSale(selectedTicket.tokenId, priceInWei)
+      const priceInWei = ethers.parseEther(SYSTEM_PRICE)
+      const tx = await contract.listTicketForSale(ticket.tokenId, priceInWei)
       await tx.wait()
 
       await updateUserTickets()
       await updateResaleListings()
 
-      alert("Ticket listed for resale successfully!")
+      alert(`Ticket #${ticket.tokenId} listed for resale at ${SYSTEM_PRICE} AVAX!`)
     } catch (error) {
       console.error("Error listing ticket for resale:", error)
       setError((error as Error).message || "Failed to list ticket for resale. Please try again.")
@@ -220,7 +230,7 @@ const QuantumTicketResale = () => {
       const signer = await provider.getSigner()
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
 
-      const tx = await contract.buyResaleTicket(tokenId, { 
+      const tx = await contract.buyResaleTicket(tokenId, {
         value: price,
         maxFeePerGas: ethers.parseUnits('25', 'gwei'),
         maxPriorityFeePerGas: ethers.parseUnits('1', 'gwei')
@@ -285,22 +295,20 @@ const QuantumTicketResale = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab("resell")}
-                className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
-                  activeTab === "resell"
-                    ? "bg-purple-600 text-white"
-                    : "bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white"
-                }`}
+                className={`px-4 py-2 text-sm font-medium rounded-l-lg ${activeTab === "resell"
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white"
+                  }`}
               >
                 Resell Your Ticket
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("buy")}
-                className={`px-4 py-2 text-sm font-medium rounded-r-md ${
-                  activeTab === "buy"
-                    ? "bg-purple-600 text-white"
-                    : "bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white"
-                }`}
+                className={`px-4 py-2 text-sm font-medium rounded-r-md ${activeTab === "buy"
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white"
+                  }`}
               >
                 Buy Resale Ticket
               </button>
@@ -308,151 +316,181 @@ const QuantumTicketResale = () => {
           </div>
 
           {activeTab === "resell" && (
-            <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl border border-purple-500/30 p-8 mb-6 md:mb-8">
-              <h2 className="text-2xl font-bold mb-4">Resell Your Ticket</h2>
-              <p className="text-gray-400 mb-6">List your ticket for resale on the marketplace</p>
-              <div className="grid gap-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {userTickets.map((ticket) => (
-                    <button
+            <div className="max-w-3xl mx-auto">
+              <h2 className="text-2xl font-bold mb-6 flex items-center">
+                <Tag className="w-6 h-6 mr-2 text-purple-400" />
+                Your Collectibles
+              </h2>
+              <div className="space-y-4">
+                {userTickets.length > 0 ? (
+                  userTickets.map((ticket) => (
+                    <div
                       key={ticket.tokenId}
-                      onClick={() => setSelectedTicket(ticket)}
-                      className={`px-4 py-2 rounded-lg ${
-                        selectedTicket?.tokenId === ticket.tokenId
-                          ? "bg-purple-600 text-white"
-                          : "bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white"
-                      }`}
+                      className="group bg-gray-900/50 backdrop-blur-md border border-gray-800 hover:border-purple-500/50 rounded-xl p-4 flex flex-col sm:flex-row items-center gap-6 transition-all duration-300"
                     >
-                      Ticket #{ticket.tokenId}
-                    </button>
-                  ))}
-                </div>
-                {selectedTicket && (
-                  <div className="grid gap-2">
-                    <label htmlFor="resalePrice" className="text-sm text-gray-400">
-                      Resale Price (AVAX)
-                    </label>
-                    <input
-                      id="resalePrice"
-                      type="number"
-                      placeholder="Enter resale price"
-                      value={resalePrice}
-                      onChange={(e) => setResalePrice(e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm sm:text-base"
-                    />
+                      {/* Ticket Preview Mini */}
+                      <div className="w-full sm:w-48 h-24 bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-lg flex items-center justify-center relative overflow-hidden">
+                        <div className="absolute inset-0 bg-black/40" />
+                        <span className="relative z-10 font-mono text-purple-300 font-bold text-xl">#{ticket.tokenId}</span>
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 text-center sm:text-left">
+                        <h3 className="text-lg font-bold text-white mb-1">Event Ticket #{ticket.tokenId}</h3>
+                        <div className="flex items-center justify-center sm:justify-start gap-4 text-sm text-gray-400">
+                          <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> System Price: 0.5 AVAX</span>
+                        </div>
+                      </div>
+
+                      {/* Action */}
+                      <div className="w-full sm:w-auto">
+                        <button
+                          onClick={() => handleListForResale(ticket)}
+                          disabled={isLoading}
+                          className="w-full px-6 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                        >
+                          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
+                          Resell Now
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 bg-gray-900/30 rounded-2xl border border-gray-800 border-dashed">
+                    <Tag className="w-12 h-12 mx-auto text-gray-600 mb-4" />
+                    <p className="text-gray-400">You don't have any tickets to resell.</p>
                   </div>
                 )}
               </div>
-              <button
-                onClick={handleListForResale}
-                disabled={!selectedTicket || !resalePrice || isLoading}
-                className={`mt-6 w-full px-6 py-3 rounded-xl ${
-                  !selectedTicket || !resalePrice || isLoading
-                    ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-                    : "bg-purple-600 hover:bg-purple-700 text-white"
-                } transition-colors duration-300`}
-              >
-                {isLoading ? (
-                  <Loader2 className="inline-block w-5 h-5 mr-2 animate-spin" />
-                ) : (
-                  <Tag className="inline-block w-5 h-5 mr-2" />
-                )}
-                List for Resale
-              </button>
             </div>
           )}
 
           {activeTab === "buy" && (
-            <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl border border-purple-500/30 p-8 mb-6 md:mb-8">
-              <h2 className="text-2xl font-bold mb-4">Buy Resale Tickets</h2>
-              <p className="text-gray-400 mb-6">Purchase tickets listed for resale by other users</p>
-              <div className="grid gap-4">
-                {resaleListings.length > 0 ? (
-                  resaleListings.map((listing) => {
+            <div>
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col md:flex-row gap-4 mb-8 bg-gray-900/50 p-4 rounded-2xl border border-gray-800">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search by event name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-black/50 border border-gray-700 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                  />
+                </div>
+                <div className="flex items-center gap-2 bg-black/50 border border-gray-700 rounded-xl px-4">
+                  <Filter className="text-gray-400 w-5 h-5" />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="bg-transparent text-white py-3 outline-none cursor-pointer"
+                  >
+                    <option value="newest">Newest Listed</option>
+                    <option value="price_asc">Price: Low to High</option>
+                    <option value="price_desc">Price: High to Low</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Grid Layout */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {resaleListings
+                  .filter(item => {
+                    // Mock filtering by name since blockahin data is limited in this demo context
+                    // For real app, would filter by metadata
+                    return true;
+                  })
+                  .sort((a, b) => {
+                    if (sortBy === 'price_asc') return Number(a.price) - Number(b.price);
+                    if (sortBy === 'price_desc') return Number(b.price) - Number(a.price);
+                    return 0;
+                  })
+                  .map((listing) => {
                     // Generate random event details for dummy tickets
-                    const eventNames = [
-                      "Quantum Nexus Festival",
-                      "Blockchain Summit 2023",
-                      "Crypto Conference",
-                      "Web3 Hackathon",
-                      "NFT Art Exhibition"
-                    ];
-                    const locations = [
-                      "Virtual Reality Hall",
-                      "Metaverse Arena",
-                      "Crypto Convention Center",
-                      "Blockchain Boulevard",
-                      "Digital Domain Stadium"
-                    ];
-                    const dates = [
-                      "Dec 15, 2023",
-                      "Jan 20, 2024",
-                      "Feb 5, 2024",
-                      "Mar 12, 2024",
-                      "Apr 8, 2024"
-                    ];
-                    
-                    // Use token ID to deterministically select event details
+                    // ... (Keeping existing dummy data generation logic for consistency) ...
+                    const eventNames = ["Quantum Nexus", "Blockchain Summit", "Crypto Conf", "Web3 Hackathon", "NFT Exhibition"];
+                    const locations = ["Virtual Hall", "Metaverse", "Crypto Center", "Blockchain Blvd", "Digital Stadium"];
+                    const dates = ["Dec 15", "Jan 20", "Feb 05", "Mar 12", "Apr 08"];
+
                     const tokenIdNum = parseInt(listing.tokenId);
                     const eventName = eventNames[tokenIdNum % eventNames.length];
                     const location = locations[tokenIdNum % locations.length];
                     const date = dates[tokenIdNum % dates.length];
-                    
+
+                    // Construct a 'complete' ticket object for the preview modal
+                    const fullTicketData = {
+                      ...listing,
+                      eventName,
+                      eventDate: date,
+                      venue: location,
+                      // Add dummy image or seat if missing
+                      image: `https://images.unsplash.com/photo-${1540575467063 + tokenIdNum}?w=800&h=400&fit=crop`
+                    };
+
                     return (
                       <div
                         key={listing.tokenId}
-                        className="flex flex-col p-4 border border-purple-500/30 rounded-lg bg-gray-800/50 hover:bg-gray-800/70 transition-all duration-300 backdrop-blur-sm"
+                        className="group bg-gray-900 border border-gray-800 hover:border-purple-500/50 rounded-2xl overflow-hidden hover:shadow-2xl hover:shadow-purple-900/20 transition-all duration-300 flex flex-col"
                       >
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="text-lg font-semibold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                              {eventName}
-                            </h3>
-                            <p className="text-sm text-gray-300">Ticket #{listing.tokenId}</p>
-                          </div>
-                          <div className="px-3 py-1 bg-purple-600/30 rounded-full text-purple-300 text-sm font-medium">
-                            {ethers.formatEther(listing.price)} AVAX
-                          </div>
-                        </div>
-                        
-                        <div className="mb-4">
-                          <div className="flex items-center text-sm text-gray-400 mb-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            {location}
-                          </div>
-                          <div className="flex items-center text-sm text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            {date}
+                        {/* Image Area */}
+                        <div className="h-48 bg-gray-800 relative overflow-hidden">
+                          <img
+                            src={fullTicketData.image}
+                            alt={eventName}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 opacity-60 group-hover:opacity-100"
+                          />
+                          <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-gray-700 text-xs font-mono text-white">
+                            #{listing.tokenId}
                           </div>
                         </div>
-                        
-                        <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-700">
-                          <div className="text-xs text-gray-500">
-                            Seller: {formatAddress(listing.owner)}
+
+                        {/* Content */}
+                        <div className="p-5 flex-1 flex flex-col">
+                          <div className="mb-4">
+                            <h3 className="text-xl font-bold text-white mb-2 line-clamp-1">{eventName}</h3>
+                            <div className="space-y-2">
+                              <p className="flex items-center text-gray-400 text-sm">
+                                <Calendar className="w-4 h-4 mr-2 text-purple-500" /> {date}
+                              </p>
+                              <p className="flex items-center text-gray-400 text-sm">
+                                <MapPin className="w-4 h-4 mr-2 text-purple-500" /> {location}
+                              </p>
+                            </div>
                           </div>
+
+                          <div className="mt-auto flex items-center justify-between pt-4 border-t border-gray-800">
+                            <div className="text-lg font-bold text-white">
+                              {ethers.formatEther(listing.price)} <span className="text-sm text-purple-400">AVAX</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions Overlay / Bottom Bar */}
+                        <div className="p-4 bg-black/20 flex gap-3">
+                          <button
+                            onClick={() => setViewTicket(fullTicketData)}
+                            className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors text-sm font-semibold flex items-center justify-center gap-2"
+                          >
+                            <Eye className="w-4 h-4" /> View
+                          </button>
                           <button
                             onClick={() => handleBuyResaleTicket(listing.tokenId, listing.price)}
-                            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-lg transition-colors duration-300 flex items-center"
+                            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white text-sm font-bold shadow-lg shadow-purple-900/20 flex items-center justify-center gap-2"
                           >
-                            <ShoppingCart className="w-4 h-4 mr-2" />
                             Buy Now
                           </button>
                         </div>
                       </div>
                     );
-                  })
-                ) : (
-                  <div className="text-center py-10">
-                    <div className="text-gray-400 mb-2">No tickets available for resale at the moment</div>
-                    <p className="text-sm text-gray-500">Check back later or list your own ticket for resale</p>
-                  </div>
-                )}
+                  })}
               </div>
+
+              {resaleListings.length === 0 && (
+                <div className="text-center py-20">
+                  <p className="text-gray-500">No tickets found matching your criteria.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -464,6 +502,26 @@ const QuantumTicketResale = () => {
           )}
         </div>
       </main>
+
+      {/* Ticket Preview Modal */}
+      {viewTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative max-w-5xl w-full">
+            <button
+              onClick={() => setViewTicket(null)}
+              className="absolute -top-12 right-0 md:-right-8 text-gray-400 hover:text-white p-2"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            <div className="overflow-x-auto pb-4 flex justify-center">
+              <div className="scale-75 sm:scale-90 md:scale-100 origin-center">
+                {/* @ts-ignore */}
+                <EventverseTicket ticket={viewTicket} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
