@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Wallet, Ticket as TicketIcon, Calendar, MapPin, User, QrCode, Download, AlertCircle, Loader, Eye, DollarSign, MessageSquare } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import { saveAs } from 'file-saver';
+import EventverseTicket from '../components/EventverseTicket';
 import { useWallet } from '../contexts/WalletContext';
 import { CONTRACTS, NETWORK } from '../config/contracts';
 import { useCurrency } from '../utils/currency.jsx';
@@ -19,15 +22,30 @@ const AVALANCHE_MAINNET_PARAMS = {
 const Ticket = () => {
   const { walletAddress, isConnecting, connectWallet, isConnected, networkId, EXPECTED_CHAIN_ID, switchToAvalanche } = useWallet();
   const { format } = useCurrency();
-  
+
   // UI States
   const [isVisible, setIsVisible] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  
+
   // Ticket States
   const [userTickets, setUserTickets] = useState([]);
+  const ticketRef = useRef(null);
+
+  const handleDownloadTicket = async () => {
+    if (ticketRef.current === null) {
+      return;
+    }
+
+    try {
+      const dataUrl = await toPng(ticketRef.current, { cacheBust: true, pixelRatio: 2 });
+      saveAs(dataUrl, `Eventverse-Ticket-${selectedTicket.tokenId}.png`);
+    } catch (err) {
+      console.error('Error downloading ticket:', err);
+      // Optional: Add a toast or error state here
+    }
+  };
 
   useEffect(() => {
     setIsVisible(true);
@@ -44,7 +62,7 @@ const Ticket = () => {
   const fetchUserTickets = async () => {
     try {
       setIsLoading(true);
-      
+
       // Fetch tickets from backend
       const response = await fetch(`http://localhost:8080/api/tickets/wallet/${walletAddress}`);
       const result = await response.json();
@@ -104,7 +122,7 @@ const Ticket = () => {
     const currentTicket = userTickets.find(t => t.tokenId === selectedTicket?.tokenId);
     console.log('🔍 Current ticket from array:', currentTicket);
     console.log('🔍 Transaction hash:', currentTicket?.transactionHash);
-    
+
     if (currentTicket && currentTicket.transactionHash) {
       window.open(`${NETWORK.EXPLORER}/tx/${currentTicket.transactionHash}`, '_blank');
     } else {
@@ -286,8 +304,8 @@ const Ticket = () => {
                             }`}
                         >
                           <div className="flex items-start space-x-3">
-                            <img 
-                              src={ticket.image} 
+                            <img
+                              src={ticket.image}
                               alt={ticket.eventName}
                               className="w-12 h-12 rounded-lg object-cover"
                             />
@@ -434,7 +452,10 @@ const Ticket = () => {
 
                               {/* Actions */}
                               <div className="space-y-3">
-                                <button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl transition-colors duration-300 flex items-center justify-center text-sm sm:text-base">
+                                <button
+                                  onClick={handleDownloadTicket}
+                                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl transition-colors duration-300 flex items-center justify-center text-sm sm:text-base"
+                                >
                                   <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                                   Download Ticket
                                 </button>
@@ -495,7 +516,12 @@ const Ticket = () => {
           )}
         </div>
       </main>
-    </div>
+
+      {/* Hidden Ticket Component for Generation */}
+      <div style={{ position: 'absolute', top: -9999, left: -9999 }}>
+        <EventverseTicket ref={ticketRef} ticket={selectedTicket} />
+      </div>
+    </div >
   );
 };
 
