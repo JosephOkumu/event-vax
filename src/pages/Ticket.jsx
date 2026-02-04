@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Wallet, Ticket as TicketIcon, Calendar, MapPin, User, QrCode, Download, AlertCircle, Loader, Eye, DollarSign, MessageSquare } from 'lucide-react';
+import { Wallet, Ticket as TicketIcon, Calendar, MapPin, User, QrCode, Download, AlertCircle, Loader, Eye, DollarSign, MessageSquare, X } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { saveAs } from 'file-saver';
 import EventverseTicket from '../components/EventverseTicket';
@@ -31,9 +31,14 @@ const Ticket = () => {
 
   // Ticket States
   const [userTickets, setUserTickets] = useState([]);
+  const [showPreview, setShowPreview] = useState(false);
   const ticketRef = useRef(null);
 
-  const handleDownloadTicket = async () => {
+  const handleOpenPreview = () => {
+    setShowPreview(true);
+  };
+
+  const handleConfirmDownload = async () => {
     if (ticketRef.current === null) {
       return;
     }
@@ -41,9 +46,9 @@ const Ticket = () => {
     try {
       const dataUrl = await toPng(ticketRef.current, { cacheBust: true, pixelRatio: 2 });
       saveAs(dataUrl, `Eventverse-Ticket-${selectedTicket.tokenId}.png`);
+      setShowPreview(false);
     } catch (err) {
       console.error('Error downloading ticket:', err);
-      // Optional: Add a toast or error state here
     }
   };
 
@@ -453,7 +458,7 @@ const Ticket = () => {
                               {/* Actions */}
                               <div className="space-y-3">
                                 <button
-                                  onClick={handleDownloadTicket}
+                                  onClick={handleOpenPreview}
                                   className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl transition-colors duration-300 flex items-center justify-center text-sm sm:text-base"
                                 >
                                   <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
@@ -521,9 +526,46 @@ const Ticket = () => {
       <div style={{ position: 'absolute', top: -9999, left: -9999 }}>
         <EventverseTicket ref={ticketRef} ticket={selectedTicket} />
       </div>
+
+      {/* Preview Modal */}
+      {showPreview && selectedTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl max-w-5xl w-full p-6 relative shadow-2xl">
+            <button
+              onClick={() => setShowPreview(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <h3 className="text-xl font-bold text-white mb-6">Preview Ticket</h3>
+
+            <div className="flex justify-center mb-8 overflow-x-auto py-4">
+              <div className="transform scale-75 md:scale-90 lg:scale-100 origin-top">
+                <EventverseTicket ticket={selectedTicket} />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowPreview(false)}
+                className="px-6 py-2 rounded-xl text-gray-300 hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDownload}
+                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl transition-colors flex items-center shadow-lg shadow-purple-900/20"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Confirm Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 };
 
 export default Ticket;
-
