@@ -22,6 +22,8 @@ interface Ticket {
   owner: string
   isForSale: boolean
   price: bigint
+  eventName?: string
+  image?: string
 }
 
 interface ResaleListing {
@@ -83,24 +85,24 @@ const QuantumTicketResale = () => {
     if (!isConnected || !walletAddress) return
 
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum!)
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider)
+      // Fetch from Backend API for consistency with Ticket.jsx
+      const response = await fetch(`http://localhost:8080/api/tickets/wallet/${walletAddress}`);
+      const result = await response.json();
 
-      const balance = await contract.balanceOf(walletAddress)
-      const tickets: Ticket[] = []
-
-      for (let i = 0; i < balance; i++) {
-        const tokenId = await contract.tokenOfOwnerByIndex(walletAddress, i)
-        const details = await contract.getTicketDetails(tokenId)
-        tickets.push({
-          tokenId: tokenId.toString(),
-          owner: details.owner,
-          isForSale: details.isForSale,
-          price: details.price,
-        })
+      if (result.success && result.tickets.length > 0) {
+        const tickets: Ticket[] = result.tickets.map((ticket: any, index: number) => ({
+          tokenId: ticket.id.toString(),
+          owner: walletAddress,
+          isForSale: false, // Default from API, or check if listed if API supports it
+          price: BigInt(0), // Default, as we're listing it new
+          // Add extra fields for UI
+          eventName: ticket.event_name,
+          image: ticket.flyer_image || `https://images.unsplash.com/photo-${1540575467063 + index}?w=800&h=400&fit=crop`
+        }));
+        setUserTickets(tickets);
+      } else {
+        setUserTickets([]);
       }
-
-      setUserTickets(tickets)
     } catch (error) {
       console.error("Error fetching user tickets:", error)
     }
@@ -329,14 +331,19 @@ const QuantumTicketResale = () => {
                       className="group bg-gray-900/50 backdrop-blur-md border border-gray-800 hover:border-purple-500/50 rounded-xl p-4 flex flex-col sm:flex-row items-center gap-6 transition-all duration-300"
                     >
                       {/* Ticket Preview Mini */}
-                      <div className="w-full sm:w-48 h-24 bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-lg flex items-center justify-center relative overflow-hidden">
-                        <div className="absolute inset-0 bg-black/40" />
-                        <span className="relative z-10 font-mono text-purple-300 font-bold text-xl">#{ticket.tokenId}</span>
+                      <div className="w-full sm:w-48 h-24 bg-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden group-hover:shadow-lg transition-all">
+                        <img
+                          src={ticket.image}
+                          alt={ticket.eventName}
+                          className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                        <span className="relative z-10 font-mono text-white font-bold text-xl drop-shadow-md">#{ticket.tokenId}</span>
                       </div>
 
                       {/* Info */}
                       <div className="flex-1 text-center sm:text-left">
-                        <h3 className="text-lg font-bold text-white mb-1">Event Ticket #{ticket.tokenId}</h3>
+                        <h3 className="text-lg font-bold text-white mb-1">{ticket.eventName || `Event Ticket #${ticket.tokenId}`}</h3>
                         <div className="flex items-center justify-center sm:justify-start gap-4 text-sm text-gray-400">
                           <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> System Price: 0.5 AVAX</span>
                         </div>
