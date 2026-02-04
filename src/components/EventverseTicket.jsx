@@ -1,13 +1,13 @@
 import React, { forwardRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, MapPin, Ticket as TicketIcon } from 'lucide-react';
+import { Calendar, MapPin, Ticket as TicketIcon, ShieldCheck } from 'lucide-react';
 
 const EventverseTicket = forwardRef(({ ticket }, ref) => {
     if (!ticket) return null;
 
-    // QR Code Data
+    // QR Code Data - Encodes essential verification info
     const qrData = JSON.stringify({
-        contractAddress: "0x...", // You might want to pass this as a prop if dynamic
+        contractAddress: ticket.contractAddress || "0x...", 
         tokenId: ticket.tokenId,
         ownerAddress: ticket.owner
     });
@@ -15,89 +15,114 @@ const EventverseTicket = forwardRef(({ ticket }, ref) => {
     return (
         <div
             ref={ref}
-            className="flex bg-[#0f0f12] text-white overflow-hidden relative"
-            style={{ width: '800px', height: '320px' }}
+            className="flex bg-[#0f0f12] text-white overflow-hidden relative border border-gray-800 rounded-lg shadow-2xl"
+            style={{ width: '800px', height: '320px', fontFamily: 'sans-serif' }}
         >
-            {/* Background Gradient & Pattern */}
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-blue-900/20" />
-
-            {/* Left Side (Main Info) */}
-            <div className="w-[70%] relative p-8 flex flex-col justify-between border-r-2 border-dashed border-gray-700/50">
-                {/* Decorative Circle Top */}
-                <div className="absolute -top-4 -right-4 w-8 h-8 rounded-full bg-[#000000] z-10" />
-
-                {/* Content */}
-                <div className="z-10 relative h-full flex flex-col justify-between">
-                    {/* Header */}
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h3 className="text-purple-400 font-bold tracking-widest text-sm mb-1 uppercase">Eventverse Ticket</h3>
-                            <h1 className="text-3xl font-bold italic text-white leading-tight max-w-md">
-                                {ticket.eventName}
-                            </h1>
-                        </div>
-                        <div className="bg-purple-600/20 border border-purple-500/50 px-3 py-1 rounded text-purple-300 text-sm font-semibold uppercase tracking-wider">
-                            {ticket.ticketType}
-                        </div>
-                    </div>
-
-                    {/* Middle Info */}
-                    <div className="space-y-3">
-                        <div className="flex items-center space-x-3 text-gray-300">
-                            <Calendar className="w-5 h-5 text-purple-400" />
-                            <span className="text-lg">{ticket.eventDate} • {ticket.eventTime}</span>
-                        </div>
-                        <div className="flex items-center space-x-3 text-gray-300">
-                            <MapPin className="w-5 h-5 text-purple-400" />
-                            <span className="text-lg truncate max-w-sm">{ticket.venue}</span>
-                        </div>
-                    </div>
-
-                    {/* Footer / ID */}
-                    <div className="flex items-center space-x-2 text-gray-500 text-sm font-mono">
-                        <TicketIcon className="w-4 h-4" />
-                        <span>ID: {ticket.tokenId}</span>
-                        <span className="mx-2">•</span>
-                        <span>Seat: {ticket.seatNumber}</span>
-                    </div>
+            {/* LEFT SECTION: MAIN EVENT DETAILS */}
+            <div className="w-[70%] relative flex flex-col overflow-hidden">
+                
+                {/* 1. Background Image with Gradient Overlay */}
+                <div className="absolute inset-0 z-0">
+                    <img 
+                        src={ticket.image || ticket.eventImage} 
+                        alt="Event" 
+                        className="w-full h-full object-cover opacity-50 grayscale-[20%]" 
+                    />
+                    {/* Dark gradient to ensure text readability */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f12] via-[#0f0f12]/60 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#0f0f12] via-transparent to-transparent" />
                 </div>
 
-                {/* Background Image Overlay */}
-                {ticket.image && (
-                    <div className="absolute inset-0 z-0 opacity-10 mix-blend-overlay">
-                        <img src={ticket.image} alt="" className="w-full h-full object-cover grayscale" />
+                {/* 2. Content Layer */}
+                <div className="relative z-10 p-8 flex flex-col justify-between h-full">
+                    {/* Top Row: Type & ID */}
+                    <div className="flex items-center gap-3">
+                        <span className="bg-purple-600 text-[10px] font-black px-2.5 py-1 rounded-sm uppercase tracking-[0.2em]">
+                            {ticket.ticketType || 'Regular'}
+                        </span>
+                        <span className="text-gray-400 font-mono text-xs tracking-widest">
+                            #{ticket.tokenId?.padStart(4, '0')}
+                        </span>
                     </div>
-                )}
 
-                {/* Decorative Circle Bottom */}
-                <div className="absolute -bottom-4 -right-4 w-8 h-8 rounded-full bg-[#000000] z-10" />
+                    {/* Middle: Title */}
+                    <div>
+                        <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none mb-2 drop-shadow-md">
+                            {ticket.eventName}
+                        </h1>
+                        <div className="h-1 w-20 bg-purple-500 rounded-full" />
+                    </div>
+
+                    {/* Bottom Row: Metadata */}
+                    <div className="flex gap-8">
+                        <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-purple-500/20 rounded-md">
+                                <Calendar size={16} className="text-purple-400" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tighter">Date & Time</p>
+                                <p className="text-sm font-bold">{ticket.eventDate || ticket.date}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-purple-500/20 rounded-md">
+                                <MapPin size={16} className="text-purple-400" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tighter">Location</p>
+                                <p className="text-sm font-bold truncate w-48">{ticket.venue || ticket.location}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {/* Right Side (Stub / QR) */}
-            <div className="w-[30%] bg-[#1a1a20] relative p-6 flex flex-col items-center justify-center border-l-2 border-dashed border-gray-700/50">
-                {/* Decorative Circle Top (Matching left side) */}
-                <div className="absolute -top-4 -left-4 w-8 h-8 rounded-full bg-[#000000] z-10" />
+            {/* THE PERFORATION (Dashed Line with Cutouts) */}
+            <div className="relative w-0.5 h-full flex flex-col justify-between items-center z-20">
+                {/* Top Cutout */}
+                <div className="absolute -top-4 -left-3 w-6 h-6 bg-[#000000] rounded-full border border-gray-800" />
+                
+                {/* Dashed Line */}
+                <div className="w-full h-full border-l-2 border-dashed border-gray-700/60" />
+                
+                {/* Bottom Cutout */}
+                <div className="absolute -bottom-4 -left-3 w-6 h-6 bg-[#000000] rounded-full border border-gray-800" />
+            </div>
 
-                <div className="bg-white p-3 rounded-xl shadow-lg shadow-purple-900/20 mb-4">
+            {/* RIGHT SECTION: THE STUB (QR CODE) */}
+            <div className="w-[30%] bg-[#16161a] p-6 flex flex-col items-center justify-center text-center relative">
+                {/* Branding Text */}
+                <div className="absolute top-6 left-0 right-0 flex justify-center items-center gap-1 opacity-50">
+                    <ShieldCheck size={10} className="text-purple-400" />
+                    <span className="text-[8px] font-bold uppercase tracking-[0.3em]">Official Entry Pass</span>
+                </div>
+
+                {/* QR Code Container */}
+                <div className="bg-white p-2.5 rounded-lg shadow-xl mb-4 transform hover:scale-105 transition-transform">
                     <QRCodeSVG
                         value={qrData}
-                        size={140}
-                        level={"H"}
+                        size={135}
+                        level="H"
                         includeMargin={false}
                     />
                 </div>
 
-                <div className="text-center">
-                    <p className="text-gray-400 text-xs mb-1">SCAN FOR ENTRY</p>
-                    <p className="text-purple-400 font-mono text-sm font-bold tracking-wider">#{ticket.tokenId}</p>
+                {/* Seat/ID Detail */}
+                <div className="space-y-1">
+                    <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">Seat Number</p>
+                    <p className="text-lg font-black text-purple-400 font-mono italic">
+                        {ticket.seatNumber || `REG-${ticket.tokenId}`}
+                    </p>
                 </div>
 
-                <div className="absolute bottom-4 text-[10px] text-gray-600 font-mono">
-                    Powered by Avalanche
+                {/* Footer Branding */}
+                <div className="absolute bottom-6 left-0 right-0 px-4">
+                    <div className="flex flex-col items-center gap-1">
+                        <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest leading-none">Powered By</p>
+                        <p className="text-[11px] text-gray-400 font-black italic tracking-tighter">AVALANCHE C-CHAIN</p>
+                    </div>
                 </div>
-
-                {/* Decorative Circle Bottom */}
-                <div className="absolute -bottom-4 -left-4 w-8 h-8 rounded-full bg-[#000000] z-10" />
             </div>
         </div>
     );
