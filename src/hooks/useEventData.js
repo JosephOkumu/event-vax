@@ -30,6 +30,40 @@ export const useEventData = (eventId) => {
         getSoldTickets(ticketContract)
       ]);
 
+      // Fetch POAP data from backend
+      let poapData = null;
+      try {
+        const response = await fetch(`http://localhost:8080/api/events/${eventId}`);
+        const result = await response.json();
+        console.log('🎯 POAP API Response:', result);
+        
+        if (result.success && result.data) {
+          const data = result.data;
+          console.log('🔍 Checking POAP fields:', {
+            has_ipfs_hash: !!data.poap_ipfs_hash,
+            has_content_hash: !!data.poap_content_hash,
+            has_image_url: !!data.poap_image_url,
+            poap_supply_type: data.poap_supply_type
+          });
+          
+          // Check if any POAP field exists
+          if (data.poap_ipfs_hash || data.poap_content_hash || data.poap_image_url) {
+            poapData = {
+              image: data.poap_image_url,
+              expiryDate: data.poap_expiry_date || data.poap_expiry,
+              supplyType: data.poap_supply_type,
+              supplyCount: data.poap_supply_count,
+              minted: data.poap_minted || 0
+            };
+            console.log('✅ POAP Data loaded:', poapData);
+          } else {
+            console.log('⚠️ No POAP data found for event', eventId);
+          }
+        }
+      } catch (err) {
+        console.warn('❌ Could not fetch POAP data:', err);
+      }
+
       setEventData({
         id: eventId,
         name: eventName,
@@ -38,7 +72,8 @@ export const useEventData = (eventId) => {
         ticketContract: details.ticketContract,
         totalTickets,
         soldTickets,
-        status: getEventStatus(details.state)
+        status: getEventStatus(details.state),
+        poap: poapData
       });
 
       await fetchTicketHolders(ticketContract);
