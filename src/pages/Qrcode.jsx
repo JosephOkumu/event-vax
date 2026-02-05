@@ -3,7 +3,7 @@ import QRCode from 'react-qr-code';
 import { ethers } from 'ethers';
 import Chatbit from './Chatbit';
 import { Shield, CheckCircle, XCircle, RefreshCw, Ticket, Lock, Scan, Globe, AlertTriangle } from 'lucide-react';
-import { QRVerificationABI } from '../abi';
+import { QRVerificationABI, POAPABI } from '../abi';
 import { CONTRACTS, NETWORK } from '../config/contracts';
 
 
@@ -193,15 +193,12 @@ const QRVerificationSystem = () => {
   // QR Code Generation
   const generateQRCode = (ticketData) => {
     setSelectedTicket(ticketData);
-    const qrString = JSON.stringify({
-      ticketId: ticketData.id,
-      txHash: ticketData.txHash,
-      timestamp: Date.now()
-    });
-    setQrData(qrString);
+    // Generate a verification URL instead of raw JSON
+    const verificationUrl = `${window.location.origin}/verify/${ticketData.id}?tx=${ticketData.txHash}&t=${Date.now()}`;
+    setQrData(verificationUrl);
   };
 
-  // Ticket Verification
+  // Ticket Verification with POAP Minting
   const verifyTicketOnBlockchain = async () => {
     if (!selectedTicket) {
       setError('Please select a ticket to verify');
@@ -224,6 +221,9 @@ const QRVerificationSystem = () => {
       
       if (receipt.status === 1) {
         setVerificationStatus('success');
+        
+        // Auto-mint POAP after successful check-in
+        await mintPoapOnCheckIn(selectedTicket.id);
       } else {
         setVerificationStatus('error ');
         throw new Error('Transaction failed');
@@ -231,7 +231,6 @@ const QRVerificationSystem = () => {
     } catch (err) {
       console.error('Verification error:', err);
       if (err.code === 4001) {
-        // User rejected the transaction, reset the verification status without showing an error
         setVerificationStatus(null);
       } else if (err.code === -32602) {
         setError('Invalid request. Please check your MetaMask connection.');
@@ -242,6 +241,39 @@ const QRVerificationSystem = () => {
       }
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  // Mint POAP on Check-in
+  const mintPoapOnCheckIn = async (ticketId) => {
+    try {
+      const signer = await provider.getSigner();
+      const attendeeAddress = await signer.getAddress();
+      
+      // Extract eventId from ticketId (format: AVBX2-1234)
+      const eventId = ticketId.split('-')[0];
+      
+      // Get POAP data from backend
+      const eventResponse = await fetch(`http://localhost:8080/api/events/${eventId}`);
+      const event = await eventResponse.json();
+      
+      if (!event.data?.poap_content_hash) {
+        console.log('No POAP available for this event');
+        return;
+      }
+      
+      // Mint POAP
+      const poapContract = new ethers.Contract(CONTRACTS.POAP, POAPABI.abi, signer);
+      const tx = await poapContract.awardPOAP(
+        eventId,
+        attendeeAddress,
+        event.data.poap_content_hash
+      );
+      await tx.wait();
+      
+      console.log('🎉 POAP minted successfully!');
+    } catch (error) {
+      console.warn('⚠️ POAP minting failed:', error);
     }
   };
 

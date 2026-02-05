@@ -147,8 +147,9 @@ const Ticket = () => {
   };
 
   const generateQRCode = (ticket) => {
-    const qrData = `${ticket.eventName}|${ticket.tokenId}|${ticket.seatNumber}|${walletAddress}`;
-    return `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><rect width='200' height='200' fill='%23fff'/><text x='100' y='100' text-anchor='middle' font-size='12' fill='%23000'>QR: ${ticket.qrCode}</text></svg>`;
+    // Generate a clean verification URL instead of raw data
+    const verificationUrl = `${window.location.origin}/verify?ticket=${ticket.tokenId}&event=${ticket.eventId}`;
+    return `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><rect width='200' height='200' fill='%23fff'/><text x='100' y='100' text-anchor='middle' font-size='12' fill='%23000'>Ticket #${ticket.tokenId}</text></svg>`;
   };
 
   const formatDate = (dateString) => {
@@ -429,7 +430,7 @@ const Ticket = () => {
                                     className="w-24 h-24 sm:w-32 sm:h-32"
                                   />
                                 </div>
-                                <div className="text-xs text-gray-500 font-mono break-all">{selectedTicket.qrCode}</div>
+                                <div className="text-xs text-gray-500">Scan to verify ticket</div>
                               </div>
 
                               {/* Actions */}
