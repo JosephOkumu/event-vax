@@ -31,6 +31,11 @@ const createEventsTable = () => {
       creator_address TEXT,
       blockchain_tx_hash TEXT,
       blockchain_event_id INTEGER,
+      poap_ipfs_hash TEXT,
+      poap_content_hash TEXT,
+      poap_expiry TEXT,
+      poap_supply_type TEXT,
+      poap_supply_count INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -162,6 +167,30 @@ export const deleteEvent = (id) => {
     const sql = 'DELETE FROM events WHERE id = ?';
     const stmt = db.prepare(sql);
     const result = stmt.run(id);
+    return result.changes;
+};
+
+// Update event POAP data
+export const updateEventPoap = (id, poapData) => {
+    const sql = `
+        UPDATE events 
+        SET poap_ipfs_hash = ?, poap_content_hash = ?, 
+            poap_expiry = ?, poap_supply_type = ?, 
+            poap_supply_count = ?, poap_image_base64 = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    `;
+    
+    const stmt = db.prepare(sql);
+    const result = stmt.run(
+        poapData.ipfsHash || null,
+        poapData.contentHash || null,
+        poapData.expiryDate || null,
+        poapData.supplyType || null,
+        poapData.supplyCount || null,
+        poapData.imageBase64 || null,
+        id
+    );
+    
     return result.changes;
 };
 
