@@ -421,6 +421,55 @@ const QuantumEventCreator = () => {
         alert(`✅ Event created successfully! Event ID: ${result.eventId}`);
         console.log('Event saved to database:', result.data);
 
+        // Handle POAP if included
+        if (includePoap && poapData.image) {
+          try {
+            const poapImageBase64 = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.readAsDataURL(poapData.image);
+            });
+
+            const poapResponse = await fetch('http://localhost:8080/api/metadata/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'POAP',
+                metadata: {
+                  name: `${formData.eventName} POAP`,
+                  description: `Proof of attendance for ${formData.eventName}`,
+                  attributes: [
+                    { trait_type: "Event", value: formData.eventName },
+                    { trait_type: "Date", value: formData.eventDate },
+                    { trait_type: "Venue", value: formData.venue }
+                  ]
+                },
+                image: poapImageBase64
+              })
+            });
+
+            const poapResult = await poapResponse.json();
+            if (poapResult.success) {
+              await fetch('http://localhost:8080/api/events/poap', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  eventId: result.eventId,
+                  ipfsHash: poapResult.ipfsHash,
+                  contentHash: poapResult.contentHash,
+                  expiryDate: poapData.expiryDate,
+                  supplyType: poapData.supplyType,
+                  supplyCount: poapData.supplyCount,
+                  imageBase64: poapImageBase64
+                })
+              });
+              console.log('✅ POAP uploaded to IPFS:', poapResult.ipfsHash);
+            }
+          } catch (poapError) {
+            console.warn('⚠️ POAP upload failed:', poapError);
+          }
+        }
+
         // Reset form
         setFormData({
           eventName: '',
@@ -434,6 +483,9 @@ const QuantumEventCreator = () => {
         setEventFlyer(null);
         setFlyerPreview(null);
         setUploadError('');
+        setIncludePoap(false);
+        setPoapData({ image: null, expiryDate: '', supplyType: 'limitless', supplyCount: '' });
+        setPoapPreview(null);
 
         // Redirect to home page after a short delay
         setTimeout(() => {
