@@ -89,6 +89,12 @@ router.get('/:id', async (req, res) => {
             });
         }
 
+        // Always add POAP fields for frontend compatibility
+        // Use base64 fallback if IPFS hash exists but might not be accessible
+        event.poap_image_url = event.poap_image_base64 || 
+            (event.poap_ipfs_hash ? `https://gateway.pinata.cloud/ipfs/${event.poap_ipfs_hash}` : null);
+        event.poap_expiry_date = event.poap_expiry;
+        
         res.json({
             success: true,
             data: event
@@ -154,6 +160,36 @@ router.delete('/:id', async (req, res) => {
             error: 'Failed to delete event',
             details: error.message
         });
+    }
+});
+
+// Store POAP metadata for event
+router.post('/poap', async (req, res) => {
+    const { eventId, ipfsHash, contentHash, expiryDate, supplyType, supplyCount, imageBase64 } = req.body;
+    
+    try {
+        const { updateEventPoap } = await import('../utils/database.js');
+        const changes = updateEventPoap(eventId, {
+            ipfsHash,
+            contentHash,
+            expiryDate,
+            supplyType,
+            supplyCount,
+            imageBase64
+        });
+        
+        if (changes === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Event not found'
+            });
+        }
+        
+        console.log(`✅ POAP data updated for event ${eventId}`);
+        res.json({ success: true, message: 'POAP data saved successfully' });
+    } catch (error) {
+        console.error('❌ Error saving POAP:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
