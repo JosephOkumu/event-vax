@@ -390,6 +390,23 @@ const EventDashboard = () => {
                             src={eventData.poap.image}
                             alt={`${eventData.name} POAP`}
                             className="w-48 h-48 rounded-full object-cover border-4 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.5)] animate-float"
+                            onError={(e) => {
+                              const hash = eventData.poap.image.split('/ipfs/')[1];
+                              if (!hash) return;
+                              
+                              if (e.target.src.includes('gateway.pinata.cloud')) {
+                                console.log('Trying ipfs.io gateway...');
+                                e.target.src = `https://ipfs.io/ipfs/${hash}`;
+                              } else if (e.target.src.includes('ipfs.io')) {
+                                console.log('Trying dweb.link gateway...');
+                                e.target.src = `https://dweb.link/ipfs/${hash}`;
+                              } else {
+                                console.error('All IPFS gateways failed for:', hash);
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div class="w-48 h-48 rounded-full bg-purple-900/20 border-4 border-purple-500/50 flex items-center justify-center"><svg class="w-16 h-16 text-purple-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path></svg></div><p class="mt-4 text-purple-300 font-medium">Official Event POAP</p><p class="text-xs text-gray-500 mt-2">Image loading failed</p>';
+                              }
+                            }}
+                            crossOrigin="anonymous"
                           />
                         ) : (
                           <div className="w-48 h-48 rounded-full bg-purple-900/20 border-4 border-purple-500/50 flex items-center justify-center">
