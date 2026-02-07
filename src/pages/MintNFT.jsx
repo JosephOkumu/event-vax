@@ -32,7 +32,7 @@ const QuantumMintNFT = () => {
   const { format, toAVAX, currency } = useCurrency();
   const fromTicketPage = searchParams.get('fromTicket') === 'true';
 
-  const { walletAddress, isConnecting, connectWallet } = useWallet();
+  const { walletAddress, isConnecting, connectWallet, validateNetwork } = useWallet();
   const [mintingStatus, setMintingStatus] = useState(null);
   const [tokenURI, setTokenURI] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -210,6 +210,8 @@ const QuantumMintNFT = () => {
     setMintingStatus('Preparing transaction...');
 
     try {
+      await validateNetwork();
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 

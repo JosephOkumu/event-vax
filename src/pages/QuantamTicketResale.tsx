@@ -41,7 +41,7 @@ const CONTRACT_ABI = [
 ]
 
 const QuantumTicketResale = () => {
-  const { walletAddress, isConnecting, connectWallet, disconnectWallet, isConnected } = useWallet()
+  const { walletAddress, isConnecting, connectWallet, disconnectWallet, isConnected, validateNetwork } = useWallet()
   const [isVisible, setIsVisible] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -191,6 +191,8 @@ const QuantumTicketResale = () => {
       setIsLoading(true)
       setError(null)
 
+      await validateNetwork()
+
       const provider = new ethers.BrowserProvider(window.ethereum!)
       const signer = await provider.getSigner()
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
@@ -215,6 +217,8 @@ const QuantumTicketResale = () => {
     try {
       setIsLoading(true)
       setError(null)
+
+      await validateNetwork()
 
       const provider = new ethers.BrowserProvider(window.ethereum!)
       const signer = await provider.getSigner()

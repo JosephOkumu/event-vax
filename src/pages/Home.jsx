@@ -9,10 +9,11 @@ import Teams from './Teams';
 import { Link, useNavigate } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrency } from '../utils/currency.jsx';
-
-// Avalanche Network Configuration
+// 
+// Note: This is Avalanche MAINNET configuration (different from Fuji Testnet in WalletContext)
+// Keep this if you plan to support mainnet in the future
 const AVALANCHE_MAINNET_PARAMS = {
-  chainId: '0xA86A', // Hex chain ID for Avalanche Mainnet
+  chainId: '0xA86A', // Hex chain ID for Avalanche Mainnet (43114)
   chainName: 'Avalanche Mainnet',
   nativeCurrency: {
     name: 'AVAX',
@@ -400,6 +401,12 @@ const UltimateEventPlatform = () => {
                           <span className="text-sm font-semibold text-purple-400">
                             {format(event.regular_price || event.vip_price || event.vvip_price || '0.0')}
                           </span>
+                          {event.poap_ipfs_hash && (
+                            <span className="px-2 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded-full text-xs text-yellow-400 flex items-center space-x-1">
+                              <Star className="w-3 h-3" />
+                              <span>POAP</span>
+                            </span>
+                          )}
                         </div>
                         {event.venue && (
                           <div className="text-xs text-gray-400 truncate">

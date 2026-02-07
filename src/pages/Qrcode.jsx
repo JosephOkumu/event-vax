@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import QRCode from 'react-qr-code';
+import { Shield, CheckCircle, XCircle, RefreshCw, Ticket, Lock, Scan, Globe, AlertTriangle } from 'lucide-react';
 import { ethers } from 'ethers';
 import Chatbit from './Chatbit';
-import { Shield, CheckCircle, XCircle, RefreshCw, Ticket, Lock, Scan, Globe, AlertTriangle } from 'lucide-react';
+import TicketQR from '../components/TicketQR';
 import { QRVerificationABI, POAPABI } from '../abi';
 import { CONTRACTS, NETWORK } from '../config/contracts';
+import { useWallet } from '../contexts/WalletContext';
 
 
 const QRVerificationSystem = () => {
+  const { validateNetwork, switchToAvalanche } = useWallet();
   // State Management
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState(null);
@@ -38,47 +40,6 @@ const QRVerificationSystem = () => {
       txHash: '0x912d35Cc6634C0532925a3b844Bc454e4438f123'
     }
   ];
-
-  // Network Switching Utility
-  const switchToAvalancheNetwork = async () => {
-    if (!window.ethereum) {
-      throw new Error('MetaMask is not installed');
-    }
-
-    const avalancheChainId = `0x${NETWORK.CHAIN_ID.toString(16)}`;
-    const avalancheParams = {
-      chainId: avalancheChainId,
-      chainName: NETWORK.NAME,
-      nativeCurrency: {
-        name: 'AVAX',
-        symbol: 'AVAX',
-        decimals: 18
-      },
-      rpcUrls: [NETWORK.RPC_URL],
-      blockExplorerUrls: [NETWORK.EXPLORER]
-    };
-
-    try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: avalancheChainId }]
-      });
-    } catch (switchError) {
-      if (switchError.code === 4902) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [avalancheParams]
-          });
-        } catch (addError) {
-          console.error('Error adding Avalanche network', addError);
-          throw addError;
-        }
-      } else {
-        throw switchError;
-      }
-    }
-  };
 
   // Initialize Connection and Event Listeners
   useEffect(() => {
@@ -143,7 +104,7 @@ const QRVerificationSystem = () => {
         throw new Error('MetaMask is not installed');
       }
 
-      await switchToAvalancheNetwork();
+      await validateNetwork();
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
@@ -193,9 +154,6 @@ const QRVerificationSystem = () => {
   // QR Code Generation
   const generateQRCode = (ticketData) => {
     setSelectedTicket(ticketData);
-    // Generate a verification URL instead of raw JSON
-    const verificationUrl = `${window.location.origin}/verify/${ticketData.id}?tx=${ticketData.txHash}&t=${Date.now()}`;
-    setQrData(verificationUrl);
   };
 
   // Ticket Verification with POAP Minting
@@ -214,7 +172,7 @@ const QRVerificationSystem = () => {
       setIsVerifying(true);
       setError(null);
 
-      await switchToAvalancheNetwork();
+      await validateNetwork();
 
       const tx = await contract.verifyTicket(selectedTicket.id);
       const receipt = await tx.wait();
@@ -358,10 +316,8 @@ const QRVerificationSystem = () => {
               </h2>
               
               <div className="flex justify-center p-8">
-                {qrData ? (
-                  <div className="bg-white p-4 rounded-xl">
-                    <QRCode value={qrData} size={200} />
-                  </div>
+                {selectedTicket ? (
+                  <TicketQR ticket={selectedTicket} />
                 ) : (
                    <div className="text-gray-400 text-center">
                     <Globe className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -400,7 +356,7 @@ const QRVerificationSystem = () => {
                   </div>
                 )}
 
-                {qrData && !isVerifying && (
+                {selectedTicket && !isVerifying && (
                   <button
                     onClick={verifyTicketOnBlockchain}
                     disabled={!connected}
@@ -410,7 +366,7 @@ const QRVerificationSystem = () => {
                         : 'bg-gray-600 cursor-not-allowed'}`}
                   >
                     <Shield className="w-5 h-5" />
-                    <span>Verify on Avalanche</span>
+                    <span>Manual Verify (Testing)</span>
                   </button>
                 )}
               </div>

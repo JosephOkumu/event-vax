@@ -28,8 +28,39 @@ const CreateEvent = () => {
         return;
       }
 
-      // Connect to the provider and signer
+      // Network validation
       const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      const currentChainId = Number(network.chainId);
+
+      if (currentChainId !== 43113) {
+        alert(`⚠️ Wrong Network!\n\nPlease switch to Avalanche Fuji Testnet.\n\nCurrent: Chain ID ${currentChainId}\nRequired: Chain ID 43113`);
+        
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0xA869' }],
+          });
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (switchError) {
+          if (switchError.code === 4902) {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: '0xA869',
+                chainName: 'Avalanche Fuji C-Chain',
+                nativeCurrency: { name: 'Avalanche', symbol: 'AVAX', decimals: 18 },
+                rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
+                blockExplorerUrls: ['https://testnet.snowtrace.io/']
+              }]
+            });
+          } else {
+            throw switchError;
+          }
+        }
+      }
+
+      // Connect to the provider and signer
       const signer = await provider.getSigner();
 
       // Connect to the contract

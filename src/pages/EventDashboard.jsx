@@ -49,20 +49,66 @@ const EventDashboard = () => {
     );
   }
 
-  const handleCheckIn = (guestId) => {
-    setAllGuests(prevGuests =>
-      prevGuests.map(guest =>
-        guest.id === guestId ? { ...guest, checkedIn: true } : guest
-      )
-    );
+  const handleCheckIn = async (guestId) => {
+    try {
+      await fetch(`http://localhost:8080/api/tickets/${guestId}/checkin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkedIn: true })
+      });
+      
+      setAllGuests(prevGuests =>
+        prevGuests.map(guest =>
+          guest.id === guestId ? { ...guest, checkedIn: true } : guest
+        )
+      );
+      
+      // Auto-request POAP if event has POAP configured
+      if (eventData?.poap) {
+        const guest = allGuests.find(g => g.id === guestId);
+        if (guest) {
+          try {
+            const eventResponse = await fetch(`http://localhost:8080/api/events/${eventData.id}`);
+            const eventResult = await eventResponse.json();
+            const blockchainEventId = eventResult.data?.blockchain_event_id;
+            
+            if (blockchainEventId) {
+              await fetch('http://localhost:8080/api/poap/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  eventId: blockchainEventId, 
+                  walletAddress: guest.fullWallet 
+                })
+              });
+              console.log('POAP requested for:', guest.fullWallet);
+            }
+          } catch (poapErr) {
+            console.warn('POAP request failed:', poapErr);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Check-in failed:', error);
+    }
   };
 
-  const handleCheckOut = (guestId) => {
-    setAllGuests(prevGuests =>
-      prevGuests.map(guest =>
-        guest.id === guestId ? { ...guest, checkedIn: false } : guest
-      )
-    );
+  const handleCheckOut = async (guestId) => {
+    try {
+      await fetch(`http://localhost:8080/api/tickets/${guestId}/checkin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checkedIn: false })
+      });
+      
+      setAllGuests(prevGuests =>
+        prevGuests.map(guest =>
+          guest.id === guestId ? { ...guest, checkedIn: false } : guest
+        )
+      );
+    } catch (error) {
+      console.error('Check-out failed:', error);
+    }
   };
 
   const tabs = [

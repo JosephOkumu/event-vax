@@ -3,6 +3,8 @@ import { Wallet, Ticket as TicketIcon, Calendar, MapPin, User, QrCode, Download,
 import { useWallet } from '../contexts/WalletContext';
 import { CONTRACTS, NETWORK } from '../config/contracts';
 import { useCurrency } from '../utils/currency.jsx';
+import TicketQR from '../components/TicketQR';
+import { ManualPoapMint } from '../components/ManualPoapMint';
 
 const AVALANCHE_MAINNET_PARAMS = {
   chainId: '0xA86A',
@@ -146,11 +148,7 @@ const Ticket = () => {
     }
   };
 
-  const generateQRCode = (ticket) => {
-    // Generate a clean verification URL instead of raw data
-    const verificationUrl = `${window.location.origin}/verify?ticket=${ticket.tokenId}&event=${ticket.eventId}`;
-    return `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><rect width='200' height='200' fill='%23fff'/><text x='100' y='100' text-anchor='middle' font-size='12' fill='%23000'>Ticket #${ticket.tokenId}</text></svg>`;
-  };
+
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -423,14 +421,8 @@ const Ticket = () => {
                                   <QrCode className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                                   Entry QR Code
                                 </h3>
-                                <div className="bg-white p-3 sm:p-4 rounded-xl mb-4 inline-block">
-                                  <img
-                                    src={generateQRCode(selectedTicket)}
-                                    alt="QR Code"
-                                    className="w-24 h-24 sm:w-32 sm:h-32"
-                                  />
-                                </div>
-                                <div className="text-xs text-gray-500">Scan to verify ticket</div>
+                                <TicketQR ticket={selectedTicket} />
+                                <div className="text-xs text-gray-400 mt-2">Scan at venue entrance</div>
                               </div>
 
                               {/* Actions */}
@@ -460,6 +452,10 @@ const Ticket = () => {
                                   <Eye className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                                   View on Explorer
                                 </button>
+                                <ManualPoapMint 
+                                  eventId={selectedTicket.eventId} 
+                                  walletAddress={walletAddress} 
+                                />
                               </div>
                             </div>
                           </div>

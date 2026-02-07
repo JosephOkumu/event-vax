@@ -8,7 +8,7 @@ import { EventFactoryABI, TicketNFTABI } from '../abi';
 import { CONTRACTS } from '../config/contracts';
 
 // PriceCard component - moved outside to prevent re-creation on every render
-const PriceCard = ({ tier, icon: Icon, price, color, features, handleInputChange, focusedField, setFocusedField }) => (
+const PriceCard = ({ tier, icon: Icon, price, color, features, handleInputChange, focusedField, setFocusedField, isFree }) => (
   <div className={`relative overflow-hidden rounded-xl p-6 transition-all duration-500 hover:scale-105
                   bg-gradient-to-br from-gray-900/80 to-gray-800/80 backdrop-blur-lg
                   border-2 ${color} hover:shadow-lg hover:shadow-${color}/20`}>
@@ -34,8 +34,9 @@ const PriceCard = ({ tier, icon: Icon, price, color, features, handleInputChange
         onFocus={() => setFocusedField(`${tier.toLowerCase()}Price`)}
         onBlur={() => setFocusedField(null)}
         placeholder="0.00"
+        disabled={isFree}
         className={`w-full bg-gray-800/50 border ${focusedField === `${tier.toLowerCase()}Price` ? color : 'border-gray-700'
-          } rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none transition-all duration-300`}
+          } rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none transition-all duration-300 ${isFree ? 'opacity-50 cursor-not-allowed' : ''}`}
       />
 
       <ul className="mt-4 space-y-2 text-sm text-gray-400">
@@ -58,7 +59,8 @@ PriceCard.propTypes = {
   features: PropTypes.arrayOf(PropTypes.string),
   handleInputChange: PropTypes.func.isRequired,
   focusedField: PropTypes.string,
-  setFocusedField: PropTypes.func.isRequired
+  setFocusedField: PropTypes.func.isRequired,
+  isFree: PropTypes.bool
 };
 
 // FloatingParticle component - moved outside to prevent re-creation on every render
@@ -86,7 +88,7 @@ const QuantumEventCreator = () => {
   const location = useLocation();
   const editMode = location.state?.mode === 'edit';
   const editingEvent = location.state?.eventData;
-  const { walletAddress, isConnected, connectWallet } = useWallet();
+  const { walletAddress, isConnected, connectWallet, EXPECTED_CHAIN_ID, switchToAvalanche, validateNetwork } = useWallet();
   const [isLoading, setIsLoading] = useState(true);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [formData, setFormData] = useState({
@@ -97,6 +99,11 @@ const QuantumEventCreator = () => {
     vipPrice: '',
     vvipPrice: '',
     description: ''
+  });
+  const [freeTickets, setFreeTickets] = useState({
+    regular: false,
+    vip: false,
+    vvip: false
   });
   const [focusedField, setFocusedField] = useState(null);
   const [eventFlyer, setEventFlyer] = useState(null);
@@ -163,6 +170,11 @@ const QuantumEventCreator = () => {
         vipPrice: editingEvent.ticketTypes?.VIP?.price || editingEvent.vipPrice || '',
         vvipPrice: editingEvent.ticketTypes?.VVIP?.price || editingEvent.vvipPrice || '',
         description: editingEvent.description || ''
+      });
+      setFreeTickets({
+        regular: editingEvent.ticketTypes?.Regular?.isFree || false,
+        vip: editingEvent.ticketTypes?.VIP?.isFree || false,
+        vvip: editingEvent.ticketTypes?.VVIP?.isFree || false
       });
 
       if (editingEvent.poap) {
@@ -263,6 +275,23 @@ const QuantumEventCreator = () => {
       return;
     }
 
+    // Network validation
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      const currentChainId = Number(network.chainId);
+
+      if (currentChainId !== EXPECTED_CHAIN_ID) {
+        alert(`⚠️ Wrong Network!\n\nPlease switch to Avalanche Fuji Testnet.\n\nCurrent: Chain ID ${currentChainId}\nRequired: Chain ID ${EXPECTED_CHAIN_ID}`);
+        await switchToAvalanche();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    } catch (error) {
+      console.error('Network validation failed:', error);
+      alert('Failed to validate network. Please try again.');
+      return;
+    }
+
     if (editMode) {
       alert('✅ Event updated successfully! (Frontend Simulation)');
       navigate('/event-dashboard/' + editingEvent.id);
@@ -343,9 +372,9 @@ const QuantumEventCreator = () => {
         [0, 1, 2],
         [100, 50, 20],
         [
-          ethers.parseEther(formData.regularPrice || "0.01"),
-          ethers.parseEther(formData.vipPrice || "0.05"),
-          ethers.parseEther(formData.vvipPrice || "0.1")
+          ethers.parseEther(freeTickets.regular ? "0" : (formData.regularPrice || "0.01")),
+          ethers.parseEther(freeTickets.vip ? "0" : (formData.vipPrice || "0.05")),
+          ethers.parseEther(freeTickets.vvip ? "0" : (formData.vvipPrice || "0.1"))
         ],
         {
           gasLimit: 3000000,
@@ -372,9 +401,10 @@ const QuantumEventCreator = () => {
         eventName: formData.eventName,
         eventDate: formData.eventDate,
         venue: formData.venue,
-        regularPrice: formData.regularPrice,
-        vipPrice: formData.vipPrice,
-        vvipPrice: formData.vvipPrice,
+        regularPrice: freeTickets.regular ? "0" : formData.regularPrice,
+        vipPrice: freeTickets.vip ? "0" : formData.vipPrice,
+        vvipPrice: freeTickets.vvip ? "0" : formData.vvipPrice,
+        freeTickets: freeTickets,
         description: formData.description,
         flyerImage: flyerImageBase64,
         creatorAddress: walletAddress,
@@ -480,6 +510,7 @@ const QuantumEventCreator = () => {
           vvipPrice: '',
           description: ''
         });
+        setFreeTickets({ regular: false, vip: false, vvip: false });
         setEventFlyer(null);
         setFlyerPreview(null);
         setUploadError('');
@@ -789,36 +820,32 @@ const QuantumEventCreator = () => {
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-              <PriceCard
-                tier="Regular"
-                icon={Ticket}
-                price={formData.regularPrice}
-                color="border-green-500"
-                features={["Standard entry", "Event access", "Digital ticket"]}
-                handleInputChange={handleInputChange}
-                focusedField={focusedField}
-                setFocusedField={setFocusedField}
-              />
-              <PriceCard
-                tier="VIP"
-                icon={Star}
-                price={formData.vipPrice}
-                color="border-blue-500"
-                features={["Priority entry", "VIP lounge access", "Premium seating", "Meet & greet"]}
-                handleInputChange={handleInputChange}
-                focusedField={focusedField}
-                setFocusedField={setFocusedField}
-              />
-              <PriceCard
-                tier="VVIP"
-                icon={Zap}
-                price={formData.vvipPrice}
-                color="border-yellow-500"
-                features={["Exclusive access", "Backstage pass", "Private area", "Gift package", "Photo opportunity"]}
-                handleInputChange={handleInputChange}
-                focusedField={focusedField}
-                setFocusedField={setFocusedField}
-              />
+              {['Regular', 'VIP', 'VVIP'].map((tier) => {
+                const tierKey = tier.toLowerCase();
+                const isFree = freeTickets[tierKey];
+                return (
+                  <div key={tier} className="space-y-3">
+                    <PriceCard
+                      tier={tier}
+                      icon={tier === 'Regular' ? Ticket : tier === 'VIP' ? Star : Zap}
+                      price={isFree ? '0' : formData[`${tierKey}Price`]}
+                      color={tier === 'Regular' ? 'border-green-500' : tier === 'VIP' ? 'border-blue-500' : 'border-yellow-500'}
+                      features={tier === 'Regular' ? ["Standard entry", "Event access", "Digital ticket"] : tier === 'VIP' ? ["Priority entry", "VIP lounge access", "Premium seating", "Meet & greet"] : ["Exclusive access", "Backstage pass", "Private area", "Gift package", "Photo opportunity"]}
+                      handleInputChange={handleInputChange}
+                      focusedField={focusedField}
+                      setFocusedField={setFocusedField}
+                      isFree={isFree}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFreeTickets(prev => ({ ...prev, [tierKey]: !prev[tierKey] }))}
+                      className={`w-full py-2 px-4 rounded-lg border transition-all text-sm font-medium ${isFree ? 'bg-green-600/20 border-green-500 text-green-400' : 'border-gray-700 text-gray-400 hover:border-gray-600'}`}
+                    >
+                      {isFree ? '✓ Free Ticket' : 'Make Free'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
