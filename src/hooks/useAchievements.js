@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { CONTRACTS } from '../config/contracts';
+import { API_BASE_URL } from '../config/api';
 
 const POAP_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
@@ -43,12 +44,12 @@ export const useAchievements = (walletAddress) => {
       const badgeCount = Number(badgeBalance);
 
       // Fetch tickets purchased
-      const ticketsResponse = await fetch(`http://localhost:8080/api/tickets/wallet/${walletAddress}`);
+      const ticketsResponse = await fetch(`${API_BASE_URL}/api/tickets/wallet/${walletAddress}`);
       const ticketsData = await ticketsResponse.json();
       const ticketCount = ticketsData.success ? ticketsData.tickets.length : 0;
 
       // Fetch events created
-      const eventsResponse = await fetch(`http://localhost:8080/api/events/creator/${walletAddress}`);
+      const eventsResponse = await fetch(`${API_BASE_URL}/api/events/creator/${walletAddress}`);
       const eventsData = await eventsResponse.json();
       const eventCount = eventsData.success ? eventsData.events.length : 0;
 

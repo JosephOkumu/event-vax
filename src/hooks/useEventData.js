@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { EventManagerABI, TicketNFTABI } from '../abi';
 import { CONTRACTS } from '../config/contracts';
+import { API_BASE_URL } from '../config/api';
 
 export const useEventData = (eventId) => {
   const [eventData, setEventData] = useState(null);
@@ -18,7 +19,7 @@ export const useEventData = (eventId) => {
     try {
       setLoading(true);
       
-      const backendResponse = await fetch(`http://localhost:8080/api/events/${eventId}`);
+      const backendResponse = await fetch(`${API_BASE_URL}/api/events/${eventId}`);
       const backendResult = await backendResponse.json();
       
       if (!backendResult.success || !backendResult.data) {
@@ -70,7 +71,7 @@ export const useEventData = (eventId) => {
       
       // Fallback to backend if blockchain failed or unavailable
       if (!blockchainSuccess) {
-        const ticketsResponse = await fetch(`http://localhost:8080/api/tickets/event/${eventId}`);
+        const ticketsResponse = await fetch(`${API_BASE_URL}/api/tickets/event/${eventId}`);
         const ticketsResult = await ticketsResponse.json();
         
         const ticketHolders = ticketsResult.success ? ticketsResult.tickets.map(ticket => ({
@@ -140,7 +141,7 @@ export const useEventData = (eventId) => {
       const currentBlock = await provider.getBlockNumber();
       
       // Fetch from backend first (most reliable)
-      const ticketsResponse = await fetch(`http://localhost:8080/api/tickets/event/${eventId}`);
+      const ticketsResponse = await fetch(`${API_BASE_URL}/api/tickets/event/${eventId}`);
       const ticketsResult = await ticketsResponse.json();
       
       if (ticketsResult.success && ticketsResult.tickets.length > 0) {
