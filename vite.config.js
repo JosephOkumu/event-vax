@@ -12,4 +12,10 @@ export default defineConfig({
   optimizeDeps: {
     include: ['@chakra-ui/react'],
   },
+  
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    allowedHosts: ['all', 'discovert-preacquisitively-clora.ngrok-free.dev']
+  }
 });
