@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Award, Loader2, Clock } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 export const ManualPoapMint = ({ eventId, walletAddress }) => {
   const [status, setStatus] = useState('checking');
@@ -13,7 +14,7 @@ export const ManualPoapMint = ({ eventId, walletAddress }) => {
     if (!walletAddress || !eventId) return;
     
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/poap/status/${eventId}/${walletAddress}`);
+      const res = await fetch(`${API_BASE_URL}/api/poap/status/${eventId}/${walletAddress}`);
       const data = await res.json();
       setStatus(data.status);
     } catch (err) {
@@ -26,7 +27,7 @@ export const ManualPoapMint = ({ eventId, walletAddress }) => {
     setStatus('requesting');
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/poap/request`, {
+      const res = await fetch(`${API_BASE_URL}/api/poap/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId, walletAddress })
