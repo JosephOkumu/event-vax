@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config/api';
-import { Wallet, Ticket as TicketIcon, Calendar, MapPin, User, QrCode, Download, AlertCircle, Loader, Eye, DollarSign, MessageSquare } from 'lucide-react';
+import { Wallet, Ticket as TicketIcon, Calendar, MapPin, User, QrCode, Download, AlertCircle, Loader, Eye, DollarSign, MessageSquare, X } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import { saveAs } from 'file-saver';
+import EventverseTicket from '../components/EventverseTicket';
 import { useWallet } from '../contexts/WalletContext';
 import { CONTRACTS, NETWORK } from '../config/contracts';
 import { useCurrency } from '../utils/currency.jsx';
@@ -22,15 +25,35 @@ const AVALANCHE_MAINNET_PARAMS = {
 const Ticket = () => {
   const { walletAddress, isConnecting, connectWallet, isConnected, networkId, EXPECTED_CHAIN_ID, switchToAvalanche } = useWallet();
   const { format } = useCurrency();
-  
+
   // UI States
   const [isVisible, setIsVisible] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  
+
   // Ticket States
   const [userTickets, setUserTickets] = useState([]);
+  const [showPreview, setShowPreview] = useState(false);
+  const ticketRef = useRef(null);
+
+  const handleOpenPreview = () => {
+    setShowPreview(true);
+  };
+
+  const handleConfirmDownload = async () => {
+    if (ticketRef.current === null) {
+      return;
+    }
+
+    try {
+      const dataUrl = await toPng(ticketRef.current, { cacheBust: true, pixelRatio: 2 });
+      saveAs(dataUrl, `Eventverse-Ticket-${selectedTicket.tokenId}.png`);
+      setShowPreview(false);
+    } catch (err) {
+      console.error('Error downloading ticket:', err);
+    }
+  };
 
   useEffect(() => {
     setIsVisible(true);
@@ -47,7 +70,7 @@ const Ticket = () => {
   const fetchUserTickets = async () => {
     try {
       setIsLoading(true);
-      
+
       // Fetch tickets from backend
       const response = await fetch(`${API_BASE_URL}/api/tickets/wallet/${walletAddress}`);
       const result = await response.json();
@@ -107,7 +130,7 @@ const Ticket = () => {
     const currentTicket = userTickets.find(t => t.tokenId === selectedTicket?.tokenId);
     console.log('🔍 Current ticket from array:', currentTicket);
     console.log('🔍 Transaction hash:', currentTicket?.transactionHash);
-    
+
     if (currentTicket && currentTicket.transactionHash) {
       window.open(`${NETWORK.EXPLORER}/tx/${currentTicket.transactionHash}`, '_blank');
     } else {
@@ -286,8 +309,8 @@ const Ticket = () => {
                             }`}
                         >
                           <div className="flex items-start space-x-3">
-                            <img 
-                              src={ticket.image} 
+                            <img
+                              src={ticket.image}
                               alt={ticket.eventName}
                               className="w-12 h-12 rounded-lg object-cover"
                             />
@@ -428,7 +451,10 @@ const Ticket = () => {
 
                               {/* Actions */}
                               <div className="space-y-3">
-                                <button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl transition-colors duration-300 flex items-center justify-center text-sm sm:text-base">
+                                <button
+                                  onClick={handleOpenPreview}
+                                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-2.5 sm:py-3 px-4 sm:px-6 rounded-xl transition-colors duration-300 flex items-center justify-center text-sm sm:text-base"
+                                >
                                   <Download className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                                   Download Ticket
                                 </button>
@@ -493,9 +519,51 @@ const Ticket = () => {
           )}
         </div>
       </main>
-    </div>
+
+      {/* Hidden Ticket Component for Generation */}
+      <div style={{ position: 'absolute', top: -9999, left: -9999 }}>
+        <EventverseTicket ref={ticketRef} ticket={selectedTicket} />
+      </div>
+
+      {/* Preview Modal */}
+      {showPreview && selectedTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl max-w-5xl w-full p-6 relative shadow-2xl">
+            <button
+              onClick={() => setShowPreview(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <h3 className="text-xl font-bold text-white mb-6">Preview Ticket</h3>
+
+            <div className="flex justify-center mb-8 overflow-x-auto py-4">
+              <div className="transform scale-75 md:scale-90 lg:scale-100 origin-top">
+                <EventverseTicket ticket={selectedTicket} />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => setShowPreview(false)}
+                className="px-6 py-2 rounded-xl text-gray-300 hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDownload}
+                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl transition-colors flex items-center shadow-lg shadow-purple-900/20"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Confirm Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div >
   );
 };
 
 export default Ticket;
-
