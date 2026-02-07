@@ -5,7 +5,7 @@ import { MarketplaceABI } from '../abi';
 import { CONTRACTS } from '../config/contracts';
 
 export default function TicketPurchase() {
-  const { walletAddress, isConnecting, connectWallet, isConnected } = useWallet();
+  const { walletAddress, isConnecting, connectWallet, isConnected, validateNetwork } = useWallet();
   const [quantity, setQuantity] = useState(1);
   const [pricePerTicket, setPricePerTicket] = useState(1);
   const [error, setError] = useState("");
@@ -27,6 +27,13 @@ export default function TicketPurchase() {
   const handlePurchase = async () => {
     if (!isConnected) {
       setError("Please connect your wallet before purchasing.");
+      return;
+    }
+
+    try {
+      await validateNetwork();
+    } catch (error) {
+      setError('Network validation failed. Please switch to Avalanche Fuji Testnet.');
       return;
     }
 
