@@ -142,6 +142,22 @@ export const WalletProvider = ({ children }) => {
 
   const isConnected = !!walletAddress;
 
+  const validateNetwork = async () => {
+    if (!window.ethereum) {
+      throw new Error('No wallet detected');
+    }
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const network = await provider.getNetwork();
+    const currentChainId = Number(network.chainId);
+
+    if (currentChainId !== EXPECTED_CHAIN_ID) {
+      alert(`⚠️ Wrong Network!\n\nPlease switch to Avalanche Fuji Testnet.\n\nCurrent: Chain ID ${currentChainId}\nRequired: Chain ID ${EXPECTED_CHAIN_ID}`);
+      await switchToAvalanche();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  };
+
   const value = {
     walletAddress,
     isConnecting,
@@ -150,7 +166,8 @@ export const WalletProvider = ({ children }) => {
     disconnectWallet,
     switchToAvalanche,
     isConnected,
-    EXPECTED_CHAIN_ID
+    EXPECTED_CHAIN_ID,
+    validateNetwork
   };
 
   return (

@@ -17,66 +17,93 @@ export const useEventData = (eventId) => {
   const fetchEventData = async () => {
     try {
       setLoading(true);
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const eventManager = new ethers.Contract(CONTRACTS.EVENT_MANAGER, EventManagerABI.abi, provider);
       
-      const details = await eventManager.getEventDetails(eventId);
-      const ticketContract = new ethers.Contract(details.ticketContract, TicketNFTABI.abi, provider);
+      const backendResponse = await fetch(`http://localhost:8080/api/events/${eventId}`);
+      const backendResult = await backendResponse.json();
       
-      const [eventName, eventDate, totalTickets, soldTickets] = await Promise.all([
-        ticketContract.eventName(),
-        ticketContract.eventDate(),
-        getTotalTickets(ticketContract),
-        getSoldTickets(ticketContract)
-      ]);
-
-      // Fetch POAP data from backend
-      let poapData = null;
-      try {
-        const response = await fetch(`http://localhost:8080/api/events/${eventId}`);
-        const result = await response.json();
-        console.log('🎯 POAP API Response:', result);
-        
-        if (result.success && result.data) {
-          const data = result.data;
-          console.log('🔍 Checking POAP fields:', {
-            has_ipfs_hash: !!data.poap_ipfs_hash,
-            has_content_hash: !!data.poap_content_hash,
-            has_image_url: !!data.poap_image_url,
-            poap_supply_type: data.poap_supply_type
-          });
-          
-          // Check if any POAP field exists
-          if (data.poap_ipfs_hash || data.poap_content_hash || data.poap_image_url) {
-            poapData = {
-              image: data.poap_image_url,
-              expiryDate: data.poap_expiry_date || data.poap_expiry,
-              supplyType: data.poap_supply_type,
-              supplyCount: data.poap_supply_count,
-              minted: data.poap_minted || 0
-            };
-            console.log('✅ POAP Data loaded:', poapData);
-          } else {
-            console.log('⚠️ No POAP data found for event', eventId);
-          }
-        }
-      } catch (err) {
-        console.warn('❌ Could not fetch POAP data:', err);
+      if (!backendResult.success || !backendResult.data) {
+        throw new Error('Event not found');
       }
 
-      setEventData({
-        id: eventId,
-        name: eventName,
-        date: new Date(Number(eventDate) * 1000).toISOString().split('T')[0],
-        organizer: details.organizer,
-        ticketContract: details.ticketContract,
-        totalTickets,
-        soldTickets,
-        status: getEventStatus(details.state),
-        poap: poapData
-      });
+      const backendData = backendResult.data;
+      let blockchainSuccess = false;
+      
+      // Try blockchain first if we have blockchain_event_id
+      if (backendData.blockchain_event_id && window.ethereum) {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const eventManager = new ethers.Contract(CONTRACTS.EVENT_MANAGER, EventManagerABI.abi, provider);
+          const details = await eventManager.getEventDetails(backendData.blockchain_event_id);
+          const ticketContract = new ethers.Contract(details.ticketContract, TicketNFTABI.abi, provider);
+          
+          const [eventName, eventDate, totalTickets, soldTickets] = await Promise.all([
+            ticketContract.eventName(),
+            ticketContract.eventDate(),
+            getTotalTickets(ticketContract),
+            getSoldTickets(ticketContract)
+          ]);
 
-      await fetchTicketHolders(ticketContract);
+          setEventData({
+            id: eventId,
+            name: eventName,
+            date: new Date(Number(eventDate) * 1000).toLocaleDateString(),
+            organizer: details.organizer,
+            ticketContract: details.ticketContract,
+            totalTickets,
+            soldTickets,
+            status: getEventStatus(details.state),
+            poap: backendData.poap_ipfs_hash ? {
+              image: backendData.poap_image_url,
+              expiryDate: backendData.poap_expiry,
+              supplyType: backendData.poap_supply_type,
+              supplyCount: backendData.poap_supply_count,
+              minted: backendData.poap_minted || 0
+            } : null
+          });
+
+          await fetchTicketHolders(ticketContract, backendData.blockchain_event_id);
+          blockchainSuccess = true;
+        } catch (err) {
+          console.warn('Blockchain fetch failed, using backend:', err.message);
+        }
+      }
+      
+      // Fallback to backend if blockchain failed or unavailable
+      if (!blockchainSuccess) {
+        const ticketsResponse = await fetch(`http://localhost:8080/api/tickets/event/${eventId}`);
+        const ticketsResult = await ticketsResponse.json();
+        
+        const ticketHolders = ticketsResult.success ? ticketsResult.tickets.map(ticket => ({
+          id: ticket.id,
+          wallet: `${ticket.wallet_address.slice(0, 6)}...${ticket.wallet_address.slice(-4)}`,
+          fullWallet: ticket.wallet_address,
+          ticketType: ['Regular', 'VIP', 'VVIP'][ticket.tier_id] || 'Regular',
+          checkedIn: ticket.verified || false,
+          quantity: ticket.quantity || 1
+        })) : [];
+
+        setTickets(ticketHolders);
+        
+        const totalSold = ticketHolders.reduce((sum, t) => sum + (t.quantity || 1), 0);
+
+        setEventData({
+          id: eventId,
+          name: backendData.event_name,
+          date: new Date(backendData.event_date).toLocaleDateString(),
+          organizer: backendData.creator_address,
+          ticketContract: null,
+          totalTickets: 1000,
+          soldTickets: totalSold,
+          status: 'Active',
+          poap: backendData.poap_ipfs_hash ? {
+            image: backendData.poap_image_url,
+            expiryDate: backendData.poap_expiry,
+            supplyType: backendData.poap_supply_type,
+            supplyCount: backendData.poap_supply_count,
+            minted: backendData.poap_minted || 0
+          } : null
+        });
+      }
     } catch (err) {
       console.error('Error fetching event data:', err);
       setError(err.message);
@@ -87,7 +114,7 @@ export const useEventData = (eventId) => {
 
   const getTotalTickets = async (contract) => {
     let total = 0;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       try {
         const tier = await contract.tiers(i);
         if (tier.exists) total += Number(tier.maxSupply);
@@ -98,7 +125,7 @@ export const useEventData = (eventId) => {
 
   const getSoldTickets = async (contract) => {
     let sold = 0;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       try {
         const tier = await contract.tiers(i);
         if (tier.exists) sold += Number(tier.minted);
@@ -107,44 +134,71 @@ export const useEventData = (eventId) => {
     return sold;
   };
 
-  const fetchTicketHolders = async (contract) => {
-    const holders = [];
+  const fetchTicketHolders = async (contract, blockchainEventId) => {
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const currentBlock = await provider.getBlockNumber();
-      const BLOCK_RANGE = 2000; // Stay under 2048 limit
-      const fromBlock = Math.max(0, currentBlock - BLOCK_RANGE);
       
-      const filter = contract.filters.TicketPurchased();
-      const events = await contract.queryFilter(filter, fromBlock, 'latest');
+      // Fetch from backend first (most reliable)
+      const ticketsResponse = await fetch(`http://localhost:8080/api/tickets/event/${eventId}`);
+      const ticketsResult = await ticketsResponse.json();
       
-      console.log(`Found ${events.length} ticket purchase events`);
+      if (ticketsResult.success && ticketsResult.tickets.length > 0) {
+        const holders = ticketsResult.tickets.map(ticket => ({
+          id: ticket.id,
+          wallet: `${ticket.wallet_address.slice(0, 6)}...${ticket.wallet_address.slice(-4)}`,
+          fullWallet: ticket.wallet_address,
+          ticketType: ['Regular', 'VIP', 'VVIP'][ticket.tier_id] || 'Regular',
+          checkedIn: ticket.verified || false,
+          quantity: ticket.quantity || 1
+        }));
+        setTickets(holders);
+        return;
+      }
       
-      events.forEach(event => {
-        const buyer = event.args.buyer;
-        const tierId = Number(event.args.tierId);
-        const tierName = ['Regular', 'VIP', 'VVIP'][tierId] || 'Regular';
+      // Fallback: scan blockchain in chunks
+      const holders = [];
+      const CHUNK_SIZE = 10000;
+      const MAX_BLOCKS = 100000;
+      const startBlock = Math.max(0, currentBlock - MAX_BLOCKS);
+      
+      for (let fromBlock = startBlock; fromBlock <= currentBlock; fromBlock += CHUNK_SIZE) {
+        const toBlock = Math.min(fromBlock + CHUNK_SIZE - 1, currentBlock);
         
-        if (!holders.find(h => h.fullWallet.toLowerCase() === buyer.toLowerCase())) {
-          holders.push({
-            id: holders.length + 1,
-            wallet: `${buyer.slice(0, 6)}...${buyer.slice(-4)}`,
-            fullWallet: buyer,
-            ticketType: tierName,
-            checkedIn: false
+        try {
+          const filter = contract.filters.TicketPurchased();
+          const events = await contract.queryFilter(filter, fromBlock, toBlock);
+          
+          events.forEach(event => {
+            const buyer = event.args.buyer;
+            const tierId = Number(event.args.tierId);
+            const tierName = ['Regular', 'VIP', 'VVIP'][tierId] || 'Regular';
+            
+            if (!holders.find(h => h.fullWallet.toLowerCase() === buyer.toLowerCase())) {
+              holders.push({
+                id: holders.length + 1,
+                wallet: `${buyer.slice(0, 6)}...${buyer.slice(-4)}`,
+                fullWallet: buyer,
+                ticketType: tierName,
+                checkedIn: false,
+                quantity: 1
+              });
+            }
           });
+        } catch (chunkErr) {
+          console.warn(`Chunk ${fromBlock}-${toBlock} failed:`, chunkErr.message);
         }
-      });
+      }
+      
+      if (holders.length > 0) setTickets(holders);
     } catch (err) {
       console.warn('Could not fetch ticket holders:', err);
     }
-    
-    setTickets(holders);
   };
 
   const getEventStatus = (state) => {
     const states = ['Draft', 'Active', 'Ended', 'Cancelled'];
-    return states[state] || 'Unknown';
+    return states[state] || 'Active';
   };
 
   return { eventData, tickets, loading, error, refetch: fetchEventData };
