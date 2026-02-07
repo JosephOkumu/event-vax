@@ -36,6 +36,9 @@ const createEventsTable = () => {
       poap_expiry TEXT,
       poap_supply_type TEXT,
       poap_supply_count INTEGER,
+      poap_image_url TEXT,
+      poap_image_base64 TEXT,
+      poap_minted INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -66,11 +69,32 @@ const createTicketsTable = () => {
     console.log('✅ Tickets table created/verified');
 };
 
+// Create poap_requests table
+const createPoapRequestsTable = () => {
+    const sql = `
+    CREATE TABLE IF NOT EXISTS poap_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      wallet_address TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      tx_hash TEXT,
+      retry_count INTEGER DEFAULT 0,
+      error TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(event_id, wallet_address)
+    )
+  `;
+
+    db.exec(sql);
+    console.log('✅ POAP requests table created/verified');
+};
+
 // Initialize database
 export const initDatabase = () => {
     try {
         createEventsTable();
         createTicketsTable();
+        createPoapRequestsTable();
         console.log('✅ Database initialized successfully');
     } catch (error) {
         console.error('❌ Database initialization error:', error);
@@ -176,7 +200,8 @@ export const updateEventPoap = (id, poapData) => {
         UPDATE events 
         SET poap_ipfs_hash = ?, poap_content_hash = ?, 
             poap_expiry = ?, poap_supply_type = ?, 
-            poap_supply_count = ?, poap_image_base64 = ?, updated_at = CURRENT_TIMESTAMP
+            poap_supply_count = ?, poap_image_url = ?, 
+            poap_image_base64 = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     `;
     
@@ -187,11 +212,24 @@ export const updateEventPoap = (id, poapData) => {
         poapData.expiryDate || null,
         poapData.supplyType || null,
         poapData.supplyCount || null,
+        poapData.imageUrl || null,
         poapData.imageBase64 || null,
         id
     );
     
     return result.changes;
+};
+
+// Increment POAP minted count
+export const incrementPoapMinted = (eventId) => {
+    const sql = `
+        UPDATE events 
+        SET poap_minted = COALESCE(poap_minted, 0) + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    `;
+    const stmt = db.prepare(sql);
+    return stmt.run(eventId).changes;
 };
 
 export default db;
