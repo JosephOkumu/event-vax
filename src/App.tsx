@@ -48,7 +48,7 @@ const App = () => {
         {/* Home, EventList, EventDetails remain unchanged */}
         <Route path="/home" element={<Home />} />
         <Route path="/events" element={<EventList />} />
-        <Route path="/event/:eventId" element={<EventDetails />} />
+        {/* <Route path="/event/:eventId" element={<EventDetails />} /> */}
         
         {/* Teams under Testimonials */}
         <Route path="/teams" element={<Teams />} />

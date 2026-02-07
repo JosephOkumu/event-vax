@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Calendar, Users, CheckCircle, MessageSquare, BarChart3, 
-  TrendingUp, Eye, UserCheck, Clock, MapPin, Ticket, X
+import {
+  Calendar, Users, CheckCircle, MessageSquare, BarChart3,
+  TrendingUp, Eye, UserCheck, Clock, MapPin, Ticket, X, Award, Edit
 } from 'lucide-react';
 import { useEventData } from '../hooks/useEventData';
 import { useWallet } from '../contexts/WalletContext';
@@ -69,7 +69,8 @@ const EventDashboard = () => {
     { id: 'general', label: 'General / Post Event Analysis', icon: BarChart3 },
     { id: 'allGuests', label: 'All Guests', icon: Users },
     { id: 'checkedIn', label: 'Checked In Guests', icon: CheckCircle },
-    { id: 'comments', label: 'Comments', icon: MessageSquare }
+    { id: 'comments', label: 'Comments', icon: MessageSquare },
+    { id: 'poaps', label: 'POAPs', icon: Award }
   ];
 
   const StatCard = ({ icon: Icon, label, value, color = 'purple' }) => (
@@ -99,11 +100,10 @@ const EventDashboard = () => {
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-semibold text-white truncate">{guest.wallet}</h4>
           <div className="flex items-center space-x-2 text-xs text-gray-400">
-            <span className={`px-2 py-0.5 rounded-full flex-shrink-0 ${
-              guest.ticketType === 'VVIP' ? 'bg-yellow-500/20 text-yellow-400' :
+            <span className={`px-2 py-0.5 rounded-full flex-shrink-0 ${guest.ticketType === 'VVIP' ? 'bg-yellow-500/20 text-yellow-400' :
               guest.ticketType === 'VIP' ? 'bg-blue-500/20 text-blue-400' :
-              'bg-green-500/20 text-green-400'
-            }`}>
+                'bg-green-500/20 text-green-400'
+              }`}>
               {guest.ticketType}
             </span>
           </div>
@@ -179,13 +179,23 @@ const EventDashboard = () => {
                   </div>
                   <p className="text-xs sm:text-sm text-gray-300">Event ID: {eventData.id}</p>
                 </div>
-                <button
-                  onClick={() => navigate('/profile')}
-                  className="w-full sm:w-auto px-3 sm:px-4 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30
-                    border border-purple-500/30 text-xs sm:text-sm text-purple-400 transition-all duration-300"
-                >
-                  Back to Profile
-                </button>
+                <div className="flex items-center space-x-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => navigate('/myevent', { state: { eventData, mode: 'edit' } })}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg bg-green-600/20 hover:bg-green-600/30
+                      border border-green-500/30 text-xs sm:text-sm text-green-400 transition-all duration-300 flex items-center justify-center space-x-2"
+                  >
+                    <Edit className="w-4 h-4" />
+                    <span>Edit Event</span>
+                  </button>
+                  <button
+                    onClick={() => navigate('/profile')}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30
+                      border border-purple-500/30 text-xs sm:text-sm text-purple-400 transition-all duration-300"
+                  >
+                    Back to Profile
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -199,11 +209,10 @@ const EventDashboard = () => {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center space-x-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg whitespace-nowrap
-                    transition-all duration-300 ${
-                    activeTab === tab.id
+                    transition-all duration-300 ${activeTab === tab.id
                       ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
                       : 'bg-black/40 backdrop-blur-xl border border-purple-500/30 text-gray-400 hover:text-white hover:border-purple-500/50'
-                  }`}
+                    }`}
                 >
                   <tab.icon className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="text-xs sm:text-sm font-medium">{tab.label}</span>
@@ -362,6 +371,78 @@ const EventDashboard = () => {
                 </div>
               </div>
             )}
+
+            {/* POAPs Tab */}
+            {activeTab === 'poaps' && (
+              <div className="space-y-6">
+                <div className="bg-black/40 backdrop-blur-xl rounded-lg border border-purple-500/30 p-6">
+                  <h3 className="text-lg font-semibold text-white mb-6 flex items-center space-x-2">
+                    <Award className="w-5 h-5 text-purple-400" />
+                    <span>Event POAPs</span>
+                  </h3>
+
+                  {eventData.poap ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {/* POAP Preview */}
+                      <div className="flex flex-col items-center justify-center p-6 bg-gray-900/50 rounded-xl border border-purple-500/20">
+                        {eventData.poap.image ? (
+                          <img
+                            src={eventData.poap.image}
+                            alt={`${eventData.name} POAP`}
+                            className="w-48 h-48 rounded-full object-cover border-4 border-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.5)] animate-float"
+                          />
+                        ) : (
+                          <div className="w-48 h-48 rounded-full bg-purple-900/20 border-4 border-purple-500/50 flex items-center justify-center">
+                            <Award className="w-16 h-16 text-purple-400/50" />
+                          </div>
+                        )}
+                        <p className="mt-4 text-purple-300 font-medium">Official Event POAP</p>
+                      </div>
+
+                      {/* POAP Details */}
+                      <div className="space-y-6">
+                        <div>
+                          <h4 className="text-sm text-gray-400 mb-1">Status</h4>
+                          <span className="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm font-medium">
+                            Active
+                          </span>
+                        </div>
+
+                        <div>
+                          <h4 className="text-sm text-gray-400 mb-1">Expiry Date</h4>
+                          <div className="flex items-center space-x-2 text-white">
+                            <Clock className="w-4 h-4 text-purple-400" />
+                            <span>{eventData.poap.expiryDate ? new Date(eventData.poap.expiryDate).toLocaleString() : 'No Expiry'}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="text-sm text-gray-400 mb-2">Supply Stats</h4>
+                          <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm text-gray-300">Minted</span>
+                              <span className="text-white font-bold">{eventData.poap.minted || 0}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-300">Total Supply</span>
+                              <span className="text-white font-bold">
+                                {eventData.poap.supplyType === 'limitless' ? '∞' : eventData.poap.supplyCount}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Award className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                      <p className="text-gray-400 mb-2">No POAPs configured for this event</p>
+                      <p className="text-sm text-gray-500">Edit your event to add a POAP reward for attendees</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -370,4 +451,3 @@ const EventDashboard = () => {
 };
 
 export default EventDashboard;
-
