@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config/api';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Calendar, Users, CheckCircle, MessageSquare, BarChart3,
@@ -51,7 +52,7 @@ const EventDashboard = () => {
 
   const handleCheckIn = async (guestId) => {
     try {
-      await fetch(`http://localhost:8080/api/tickets/${guestId}/checkin`, {
+      await fetch(`${API_BASE_URL}/api/tickets/${guestId}/checkin`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ checkedIn: true })
@@ -68,12 +69,12 @@ const EventDashboard = () => {
         const guest = allGuests.find(g => g.id === guestId);
         if (guest) {
           try {
-            const eventResponse = await fetch(`http://localhost:8080/api/events/${eventData.id}`);
+            const eventResponse = await fetch(`${API_BASE_URL}/api/events/${eventData.id}`);
             const eventResult = await eventResponse.json();
             const blockchainEventId = eventResult.data?.blockchain_event_id;
             
             if (blockchainEventId) {
-              await fetch('http://localhost:8080/api/poap/request', {
+              await fetch(`${API_BASE_URL}/api/poap/request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -95,7 +96,7 @@ const EventDashboard = () => {
 
   const handleCheckOut = async (guestId) => {
     try {
-      await fetch(`http://localhost:8080/api/tickets/${guestId}/checkin`, {
+      await fetch(`${API_BASE_URL}/api/tickets/${guestId}/checkin`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ checkedIn: false })

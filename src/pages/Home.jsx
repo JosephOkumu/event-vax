@@ -9,6 +9,7 @@ import Teams from './Teams';
 import { Link, useNavigate } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 import { useCurrency } from '../utils/currency.jsx';
+import { API_BASE_URL } from '../config/api';
 // 
 // Note: This is Avalanche MAINNET configuration (different from Fuji Testnet in WalletContext)
 // Keep this if you plan to support mainnet in the future
@@ -114,7 +115,7 @@ const UltimateEventPlatform = () => {
   const fetchEvents = async () => {
     try {
       setIsLoadingEvents(true);
-      const response = await fetch('http://localhost:8080/api/events');
+      const response = await fetch(`${API_BASE_URL}/api/events`);
       const result = await response.json();
 
       if (result.success) {

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import neuralImage from "../assets/botImage.png"; // This image needs to exist in your assets folder
+import { motion } from "framer-motion";import { API_BASE_URL } from '../config/api';import neuralImage from "../assets/botImage.png"; // This image needs to exist in your assets folder
 
 const Chatbit = () => {
   const [isPopupVisible, setIsPopupVisible] = useState(false);
@@ -12,7 +11,7 @@ const Chatbit = () => {
   const sendMessageToBackend = async (message) => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:8080/api/chatbot', {
+      const response = await fetch(`${API_BASE_URL}/api/chatbot`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

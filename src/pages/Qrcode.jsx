@@ -6,6 +6,7 @@ import TicketQR from '../components/TicketQR';
 import { QRVerificationABI, POAPABI } from '../abi';
 import { CONTRACTS, NETWORK } from '../config/contracts';
 import { useWallet } from '../contexts/WalletContext';
+import { API_BASE_URL } from '../config/api';
 
 
 const QRVerificationSystem = () => {
@@ -212,7 +213,7 @@ const QRVerificationSystem = () => {
       const eventId = ticketId.split('-')[0];
       
       // Get POAP data from backend
-      const eventResponse = await fetch(`http://localhost:8080/api/events/${eventId}`);
+      const eventResponse = await fetch(`${API_BASE_URL}/api/events/${eventId}`);
       const event = await eventResponse.json();
       
       if (!event.data?.poap_content_hash) {

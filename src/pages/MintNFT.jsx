@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config/api';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Sparkles,
@@ -88,7 +89,7 @@ const QuantumMintNFT = () => {
 
     try {
       setLoadingEvent(true);
-      const response = await fetch(`http://localhost:8080/api/events/${eventId}`);
+      const response = await fetch(`${API_BASE_URL}/api/events/${eventId}`);
       const result = await response.json();
 
       if (result.success) {
@@ -281,7 +282,7 @@ const QuantumMintNFT = () => {
         blockchainEventId
       };
 
-      const backendResponse = await fetch('http://localhost:8080/api/tickets', {
+      const backendResponse = await fetch(`${API_BASE_URL}/api/tickets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ticketData)

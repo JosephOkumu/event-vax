@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config/api';
 import { Wallet, Ticket as TicketIcon, Calendar, MapPin, User, QrCode, Download, AlertCircle, Loader, Eye, DollarSign, MessageSquare } from 'lucide-react';
 import { useWallet } from '../contexts/WalletContext';
 import { CONTRACTS, NETWORK } from '../config/contracts';
@@ -48,7 +49,7 @@ const Ticket = () => {
       setIsLoading(true);
       
       // Fetch tickets from backend
-      const response = await fetch(`http://localhost:8080/api/tickets/wallet/${walletAddress}`);
+      const response = await fetch(`${API_BASE_URL}/api/tickets/wallet/${walletAddress}`);
       const result = await response.json();
 
       if (result.success && result.tickets.length > 0) {

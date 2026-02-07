@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config/api';
 import PropTypes from 'prop-types';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Calendar, MapPin, Ticket, Sparkles, Wallet, Plus, DollarSign, Users, Clock, Star, Zap, Award, Upload, Infinity } from "lucide-react";
@@ -419,7 +420,7 @@ const QuantumEventCreator = () => {
       // Send to backend API
       let response, result;
       try {
-        response = await fetch('http://localhost:8080/api/events', {
+        response = await fetch(`${API_BASE_URL}/api/events`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -460,7 +461,7 @@ const QuantumEventCreator = () => {
               reader.readAsDataURL(poapData.image);
             });
 
-            const poapResponse = await fetch('http://localhost:8080/api/metadata/upload', {
+            const poapResponse = await fetch(`${API_BASE_URL}/api/metadata/upload`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -480,7 +481,7 @@ const QuantumEventCreator = () => {
 
             const poapResult = await poapResponse.json();
             if (poapResult.success) {
-              await fetch('http://localhost:8080/api/events/poap', {
+              await fetch(`${API_BASE_URL}/api/events/poap`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

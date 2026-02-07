@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAchievements } from '../hooks/useAchievements';
 import { useCurrency } from '../utils/currency.jsx';
+import { API_BASE_URL } from '../config/api';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const Profile = () => {
 
   const fetchUserTickets = async () => {
     try {
-      const response = await fetch(`http://localhost:8080/api/tickets/wallet/${walletAddress}`);
+      const response = await fetch(`${API_BASE_URL}/api/tickets/wallet/${walletAddress}`);
       const result = await response.json();
 
       if (result.success && result.tickets.length > 0) {
@@ -56,7 +57,7 @@ const Profile = () => {
 
   const fetchUserEvents = async () => {
     try {
-      const response = await fetch(`http://localhost:8080/api/events/creator/${walletAddress}`);
+      const response = await fetch(`${API_BASE_URL}/api/events/creator/${walletAddress}`);
       const result = await response.json();
 
       if (result.success && result.events.length > 0) {
