@@ -95,4 +95,40 @@ router.get('/wallet/:walletAddress', async (req, res) => {
     }
 });
 
+// Get tickets by event ID
+router.get('/event/:eventId', async (req, res) => {
+    try {
+        const { eventId } = req.params;
+        
+        const tickets = db.prepare(`
+            SELECT t.*, e.event_name
+            FROM tickets t
+            LEFT JOIN events e ON t.event_id = e.id
+            WHERE t.event_id = ?
+            ORDER BY t.created_at DESC
+        `).all(eventId);
+
+        res.json({ success: true, tickets });
+    } catch (error) {
+        console.error('❌ Error fetching event tickets:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch event tickets' });
+    }
+});
+
+// Update ticket check-in status
+router.patch('/:ticketId/checkin', async (req, res) => {
+    try {
+        const { ticketId } = req.params;
+        const { checkedIn } = req.body;
+        
+        db.prepare('UPDATE tickets SET verified = ? WHERE id = ?')
+          .run(checkedIn ? 1 : 0, ticketId);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ Error updating check-in:', error);
+        res.status(500).json({ success: false, error: 'Failed to update check-in' });
+    }
+});
+
 export default router;
