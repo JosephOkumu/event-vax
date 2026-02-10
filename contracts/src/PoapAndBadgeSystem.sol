@@ -62,6 +62,29 @@ contract POAP is ERC721, AccessControl {
     }
 
     /**
+    * @notice Public mint for free POAPs
+    * @param eventId Event identifier
+    * @param _metadataHash of encrypted off-chain metadata
+    */
+    function mintPOAP(
+        uint256 eventId,
+        bytes32 _metadataHash
+    ) external {
+        if (claimed[eventId][msg.sender]) revert AlreadyClaimed();
+
+        claimed[eventId][msg.sender] = true;
+
+        uint256 tokenId = ++_nextTokenId;
+
+        tokenEvent[tokenId] = eventId;
+        metadataHash[tokenId] = _metadataHash;
+
+        _safeMint(msg.sender, tokenId);
+
+        emit POAPAwarded(tokenId, eventId, msg.sender, _metadataHash);
+    }
+
+    /**
     * @notice Batch award POAPS (gas optimization)
     */
     function awardPOAPBatch(
@@ -87,6 +110,37 @@ contract POAP is ERC721, AccessControl {
 
             emit POAPAwarded(tokenId, eventId, attendee, metadataHashes[i]);
         }
+    }
+
+    /**
+    * @notice Get user's POAPs
+    */
+    function getUserPOAPs(address user) 
+        external 
+        view 
+        returns (uint256[] memory tokenIds, uint256[] memory eventIds) 
+    {
+        uint256 balance = balanceOf(user);
+        tokenIds = new uint256[](balance);
+        eventIds = new uint256[](balance);
+        
+        uint256 index = 0;
+        for (uint256 i = 1; i <= _nextTokenId && index < balance; i++) {
+            try this.ownerOf(i) returns (address owner) {
+                if (owner == user) {
+                    tokenIds[index] = i;
+                    eventIds[index] = tokenEvent[i];
+                    index++;
+                }
+            } catch {}
+        }
+    }
+
+    /**
+    * @notice Check if user has claimed POAP for event
+    */
+    function hasClaimed(uint256 eventId, address user) external view returns (bool) {
+        return claimed[eventId][user];
     }
 
     /**
@@ -189,6 +243,30 @@ contract EventBadge is ERC721, AccessControl {
         returns (uint256)
     {
         return balanceOf(organizer);
+    }
+
+    /**
+    * @notice Get organizer's badges
+    */
+    function getOrganizerBadges(address organizer) 
+        external 
+        view 
+        returns (uint256[] memory badgeIds, BadgeMetadata[] memory metadata) 
+    {
+        uint256 balance = balanceOf(organizer);
+        badgeIds = new uint256[](balance);
+        metadata = new BadgeMetadata[](balance);
+        
+        uint256 index = 0;
+        for (uint256 i = 1; i <= _nextBadgeId && index < balance; i++) {
+            try this.ownerOf(i) returns (address owner) {
+                if (owner == organizer) {
+                    badgeIds[index] = i;
+                    metadata[index] = badgeMetadata[i];
+                    index++;
+                }
+            } catch {}
+        }
     }
 
     /**
