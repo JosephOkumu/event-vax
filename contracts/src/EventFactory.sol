@@ -186,6 +186,27 @@ function setPlatformFee(uint256 _feeBps) external onlyRole(PLATFORM_ADMIN) {
     }
 
     /**
+    * @notice Get ticket contract for event
+    */
+    function getEventTicket(uint256 eventId) external view returns (address) {
+        return eventTicket[eventId];
+    }
+
+    /**
+    * @notice Get organizer event count
+    */
+    function getOrganizerEventCount(address organizer) external view returns (uint256) {
+        return organizerEventCount[organizer];
+    }
+
+    /**
+    * @notice Get total events created
+    */
+    function getTotalEvents() external view returns (uint256) {
+        return nextEventId;
+    }
+
+    /**
     * @notice Emergency pause
      */
      function pause() external onlyRole(PLATFORM_ADMIN) {
