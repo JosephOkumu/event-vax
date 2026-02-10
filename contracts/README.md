@@ -11,17 +11,17 @@ Foundry consists of:
 
 ## 🚀 Deployed Contracts (Avalanche Fuji Testnet)
 
-✅ **Live on Block 49920262**
+✅ **Live Contracts**
 
 ```
-TicketNFT Implementation: 0x6C114E55D520d5a0CFDbF94E29eE7e3ed437fe64
-EventManager:             0x1651f730a846eD23411180eC71C9eFbFCD05A871
-Marketplace:              0x5316aD9DB181111D7dA7AF4d139d223A1DdAB8E1
-EventFactory:             0x53687CccF774FDa60fE2bd4720237fbb8e4fd02c
-QRVerificationSystem:     0xd04E0B0959Ceb4f5Be7e29fc0d072368C1EC0e06
-POAP:                     0xF149868fab5D3886e33a9096ae8d08C19A5bcC40
-EventBadge:               0x5AE84f40b668979b31c2E601FdbBBd4c04dE6230
-MetadataRegistry:         0xB8F60EAf784b897F7b7AFDabdc67aC6E69fA953b
+TicketNFT Implementation: 0x520B9d1C86d2dD58b5929AC159aF06508160aDec
+EventManager:             0x5876444b87757199Cd08f44193Bf7741FDA01EAD
+Marketplace:              0x072c6707E3fd1Bcc2f2177349402Ad5fdeB82F51
+EventFactory:             0x4FC9267E6Ef419be7700e3936Fc51D2835e257D0
+QRVerificationSystem:     0x89dABaf2dC7aF4C06AF993E083115952cCd67E86
+POAP:                     0x323A6ddC3390192013bfe09Ea7d677c7469078c4
+EventBadge:               0xCB3c41286536004dee308520B4D1F64de20157DB
+MetadataRegistry:         0xCD2bA7f0941A0A79aC791Fb5D72E493557c37241
 ```
 
 **View on Snowtrace:** https://testnet.snowtrace.io/
