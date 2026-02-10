@@ -228,6 +228,53 @@ contract EventManager is AccessControl, Pausable {
     }
 
     /**
+    * @notice Get all active events
+    */
+    function getActiveEvents() external view returns (uint256[] memory) {
+        uint256 count = 0;
+        for (uint256 i = 1; i <= totalEvents; i++) {
+            if (events[i].exists && events[i].state == EventState.Active) {
+                count++;
+            }
+        }
+        
+        uint256[] memory activeIds = new uint256[](count);
+        uint256 index = 0;
+        for (uint256 i = 1; i <= totalEvents; i++) {
+            if (events[i].exists && events[i].state == EventState.Active) {
+                activeIds[index++] = i;
+            }
+        }
+        return activeIds;
+    }
+
+    /**
+    * @notice Get all events (paginated)
+    */
+    function getAllEvents(uint256 offset, uint256 limit) 
+        external 
+        view 
+        returns (EventDetails[] memory) 
+    {
+        uint256 end = offset + limit;
+        if (end > totalEvents) end = totalEvents;
+        
+        uint256 resultCount = 0;
+        for (uint256 i = offset + 1; i <= end; i++) {
+            if (events[i].exists) resultCount++;
+        }
+        
+        EventDetails[] memory result = new EventDetails[](resultCount);
+        uint256 index = 0;
+        for (uint256 i = offset + 1; i <= end; i++) {
+            if (events[i].exists) {
+                result[index++] = events[i];
+            }
+        }
+        return result;
+    }
+
+    /**
      * @notice Emergency pause
      */
      function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
