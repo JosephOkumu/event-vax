@@ -231,10 +231,14 @@ Eventverse is a revolutionary blockchain-based ticketing platform engineered to 
 
 | Contract | Address |
 |----------|----------|
-| EventFactory | `0x53687CccF774FDa60fE2bd4720237fbb8e4fd02c` |
-| Marketplace | `0x5316aD9DB181111D7dA7AF4d139d223A1DdAB8E1` |
-| EventManager | `0x1651f730a846eD23411180eC71C9eFbFCD05A871` |
-| QR Verification | `0xd04E0B0959Ceb4f5Be7e29fc0d072368C1EC0e06` |
+| EventFactory | `0x4FC9267E6Ef419be7700e3936Fc51D2835e257D0` |
+| Marketplace | `0x072c6707E3fd1Bcc2f2177349402Ad5fdeB82F51` |
+| EventManager | `0x5876444b87757199Cd08f44193Bf7741FDA01EAD` |
+| QR Verification | `0x89dABaf2dC7aF4C06AF993E083115952cCd67E86` |
+| POAP | `0x323A6ddC3390192013bfe09Ea7d677c7469078c4` |
+| EventBadge | `0xCB3c41286536004dee308520B4D1F64de20157DB` |
+| TicketNFT Implementation | `0x520B9d1C86d2dD58b5929AC159aF06508160aDec` |
+| MetadataRegistry | `0xCD2bA7f0941A0A79aC791Fb5D72E493557c37241` |
 
 **Explorer:** [View on Snowtrace](https://testnet.snowtrace.io/)
 
