@@ -3,7 +3,7 @@ import { API_BASE_URL } from '../config/api';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Calendar, Users, CheckCircle, MessageSquare, BarChart3,
-  TrendingUp, Eye, UserCheck, Clock, MapPin, Ticket, X, Award, Edit
+  TrendingUp, Eye, UserCheck, Clock, MapPin, Ticket, X, Award, Edit, Scan
 } from 'lucide-react';
 import { useEventData } from '../hooks/useEventData';
 import { useWallet } from '../contexts/WalletContext';
@@ -64,7 +64,6 @@ const EventDashboard = () => {
         )
       );
       
-      // Auto-request POAP if event has POAP configured
       if (eventData?.poap) {
         const guest = allGuests.find(g => g.id === guestId);
         if (guest) {
@@ -183,7 +182,6 @@ const EventDashboard = () => {
 
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
-      {/* Particle Background */}
       <div className="fixed inset-0 opacity-30">
         {[...Array(50)].map((_, i) => (
           <div
@@ -202,10 +200,8 @@ const EventDashboard = () => {
         ))}
       </div>
 
-      {/* Main Content */}
       <main className="relative pt-20 sm:pt-24 pb-12 px-4">
         <div className="max-w-6xl mx-auto">
-          {/* Event Header */}
           <div className={`transition-all duration-1000 mb-6
             ${isVisible ? 'translate-y-0 opacity-100' : '-translate-y-10 opacity-0'}`}>
             <div className="bg-black/40 backdrop-blur-xl rounded-2xl border border-purple-500/30 p-4 sm:p-6">
@@ -226,28 +222,35 @@ const EventDashboard = () => {
                   </div>
                   <p className="text-xs sm:text-sm text-gray-300">Event ID: {eventData.id}</p>
                 </div>
-                <div className="flex items-center space-x-2 w-full sm:w-auto">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => navigate(`/scanner-checkin?eventId=${eventId}`)}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500
+                      text-white text-xs sm:text-sm transition-all duration-300 flex items-center justify-center space-x-2"
+                  >
+                    <Scan className="w-4 h-4" />
+                    <span>Scan Tickets</span>
+                  </button>
                   <button
                     onClick={() => navigate('/myevent', { state: { eventData, mode: 'edit' } })}
                     className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg bg-green-600/20 hover:bg-green-600/30
                       border border-green-500/30 text-xs sm:text-sm text-green-400 transition-all duration-300 flex items-center justify-center space-x-2"
                   >
                     <Edit className="w-4 h-4" />
-                    <span>Edit Event</span>
+                    <span>Edit</span>
                   </button>
                   <button
                     onClick={() => navigate('/profile')}
                     className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/30
                       border border-purple-500/30 text-xs sm:text-sm text-purple-400 transition-all duration-300"
                   >
-                    Back to Profile
+                    Back
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Tabs */}
           <div className={`mb-6 transition-all duration-1000 delay-100
             ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
             <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
@@ -268,7 +271,6 @@ const EventDashboard = () => {
             </div>
           </div>
 
-          {/* Tab Content */}
           <div className={`transition-all duration-700 delay-200
             ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
 
