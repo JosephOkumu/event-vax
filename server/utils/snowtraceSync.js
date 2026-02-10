@@ -1,8 +1,9 @@
 import { ethers } from 'ethers';
 import db from './database.js';
+import { CONTRACTS } from '../config/contracts.js';
 
-const EVENT_MANAGER = '0x1651f730a846eD23411180eC71C9eFbFCD05A871';
-const METADATA_REGISTRY = '0xB8F60EAf784b897F7b7AFDabdc67aC6E69fA953b';
+const EVENT_MANAGER = CONTRACTS.EVENT_MANAGER;
+const METADATA_REGISTRY = CONTRACTS.METADATA_REGISTRY;
 const SNOWTRACE_API = 'https://api-testnet.snowtrace.io/api';
 const RPC_URL = 'https://api.avax-test.network/ext/bc/C/rpc';
 
