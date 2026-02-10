@@ -5,15 +5,15 @@ import { ChakraProvider, defaultSystem } from '@chakra-ui/react';
 import { WalletProvider } from './contexts/WalletContext';
 import { CurrencyProvider } from './utils/currency.jsx';
 import Home from './pages/Home';
-// import Discover from './pages/Discover';
 import Testimonials from './pages/Testimonials';
 import Hero from './pages/Hero';
 import EventList from './pages/EventList';
 import EventDetails from './pages/EventDetails';
 import Qrcode from './pages/Qrcode';
+import QRScanner from './pages/QRScanner';
+import QRScannerCheckin from './pages/QRScannerCheckin';
 import Chatbit from './pages/Chatbit';
 import Footer from './components/Footer';
-// import Ticketsell from './pages/Ticketsell';
 import MintNFT from './pages/MintNFT';
 import Ticket from './pages/Ticket';
 import Teams from './pages/Teams';
@@ -30,10 +30,6 @@ const router = createBrowserRouter([
     path: "/",
     element: <Layout><Home /></Layout>,
   },
-  // {
-  //   path: "discover",
-  //   element: <Layout><Discover /></Layout>,
-  // },
   {
     path: "testimonials",
     element: <Layout><Testimonials /></Layout>,
@@ -43,6 +39,14 @@ const router = createBrowserRouter([
     element: <Layout><Qrcode /></Layout>,
   },
   {
+    path: "scanner",
+    element: <Layout><QRScanner /></Layout>,
+  },
+  {
+    path: "scanner-checkin",
+    element: <Layout><QRScannerCheckin /></Layout>,
+  },
+  {
     path: "ticket",
     element: <Layout><Ticket /></Layout>,
   },
@@ -50,7 +54,6 @@ const router = createBrowserRouter([
     path: "teams",
     element: <Layout><Teams /></Layout>,
   },
-
   {
     path: "hero",
     element: <Layout><Hero /></Layout>,
@@ -63,7 +66,6 @@ const router = createBrowserRouter([
     path: "mint",
     element: <Layout><MintNFT /></Layout>,
   },
-  
   {
     path: "event-details",
     element: <Layout><EventDetails /></Layout>,
@@ -76,27 +78,22 @@ const router = createBrowserRouter([
     path: "chatbit",
     element: <Chatbit />,
   },
-
   {
     path: "waiting",
     element: <Layout><WaitlistPage /></Layout>
   },
-
   {
     path: "resell",
     element: <Layout><QuantumTicketResale /></Layout>
   },
-
   {
     path: "profile",
     element: <Layout><Profile /></Layout>
   },
-
   {
     path: "event-dashboard/:eventId",
     element: <Layout><EventDashboard /></Layout>
   },
-
   {
     path: "*",
     element: <Footer />,
