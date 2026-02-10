@@ -90,10 +90,10 @@
 
 ## Contract Addresses (Fuji Testnet)
 
-- EventFactory: `0x53687CccF774FDa60fE2bd4720237fbb8e4fd02c`
-- TicketNFT Implementation: `0x6C114E55D520d5a0CFDbF94E29eE7e3ed437fe64`
-- Marketplace: `0x5316aD9DB181111D7dA7AF4d139d223A1DdAB8E1`
-- EventManager: `0x1651f730a846eD23411180eC71C9eFbFCD05A871`
+- EventFactory: `0x4FC9267E6Ef419be7700e3936Fc51D2835e257D0`
+- TicketNFT Implementation: `0x520B9d1C86d2dD58b5929AC159aF06508160aDec`
+- Marketplace: `0x072c6707E3fd1Bcc2f2177349402Ad5fdeB82F51`
+- EventManager: `0x5876444b87757199Cd08f44193Bf7741FDA01EAD`
 
 ## Important Notes
 
