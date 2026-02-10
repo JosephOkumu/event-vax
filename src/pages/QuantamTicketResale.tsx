@@ -1,10 +1,11 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { ethers } from "ethers"
 import { Wallet, Loader2, AlertCircle, Tag, ShoppingCart, Search, Filter, Eye, X, Calendar, MapPin, Ticket as TicketIcon } from "lucide-react"
 import { useWallet } from '../contexts/WalletContext'
 import EventverseTicket from '../components/EventverseTicket'
+import { CONTRACTS } from '../config/contracts'
 
 declare global {
   interface Window {
@@ -33,15 +34,16 @@ interface ResaleListing {
   price: bigint
 }
 
-const CONTRACT_ADDRESS = "0x256ff3b9d3df415a05ba42beb5f186c28e103b2a"
-const CONTRACT_ABI = [
-  "function balanceOf(address owner) public view returns (uint256)",
-  "function tokenOfOwnerByIndex(address owner, uint256 index) public view returns (uint256)",
-  "function listTicketForSale(uint256 tokenId, uint256 price) public",
-  "function buyResaleTicket(uint256 tokenId) public payable",
-  "function cancelResaleListing(uint256 tokenId) public",
-  "function getTicketDetails(uint256 tokenId) public view returns (address owner, bool isForSale, uint256 price)",
+const MARKETPLACE_ADDRESS = CONTRACTS.MARKETPLACE
+const MARKETPLACE_ABI = [
+  "function listTicket(address ticketContract, uint256 tierId, uint256 amount, uint256 price) external returns (uint256)",
+  "function buyTicket(uint256 listingId) external payable",
+  "function cancelListing(uint256 listingId) external",
+  "function getActiveListings() external view returns (uint256[] memory)",
+  "function getListing(uint256 listingId) external view returns (tuple(address seller, address ticketContract, uint256 tierId, uint256 amount, uint256 price, uint256 listedAt, bool active))",
 ]
+
+const SYSTEM_PRICE = "0.5" // Default resale price in AVAX
 
 const QuantumTicketResale = () => {
   const { walletAddress, isConnecting, connectWallet, disconnectWallet, isConnected, validateNetwork } = useWallet()
@@ -85,111 +87,60 @@ const QuantumTicketResale = () => {
     if (!isConnected || !walletAddress) return
 
     try {
-      // Fetch from Backend API for consistency with Ticket.jsx
-      const response = await fetch(`http://localhost:8080/api/tickets/wallet/${walletAddress}`);
-      const result = await response.json();
-
-      if (result.success && result.tickets.length > 0) {
-        const tickets: Ticket[] = result.tickets.map((ticket: any, index: number) => ({
-          tokenId: ticket.id.toString(),
+      const provider = new ethers.BrowserProvider(window.ethereum!)
+      const ticketContract = CONTRACTS.TICKET_NFT_IMPLEMENTATION
+      
+      const nftABI = [
+        "function balanceOf(address owner) external view returns (uint256)",
+        "function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256)",
+        "function tokenURI(uint256 tokenId) external view returns (string)"
+      ]
+      const nftContract = new ethers.Contract(ticketContract, nftABI, provider)
+      
+      const balance = await nftContract.balanceOf(walletAddress)
+      const tickets: Ticket[] = []
+      
+      for (let i = 0; i < Number(balance); i++) {
+        const tokenId = await nftContract.tokenOfOwnerByIndex(walletAddress, i)
+        tickets.push({
+          tokenId: tokenId.toString(),
           owner: walletAddress,
-          isForSale: false, // Default from API, or check if listed if API supports it
-          price: BigInt(0), // Default, as we're listing it new
-          // Add extra fields for UI
-          eventName: ticket.event_name,
-          image: ticket.flyer_image || `https://images.unsplash.com/photo-${1540575467063 + index}?w=800&h=400&fit=crop`
-        }));
-        setUserTickets(tickets);
-      } else {
-        setUserTickets([]);
+          isForSale: false,
+          price: BigInt(0),
+          eventName: `Event Ticket #${tokenId}`,
+          image: `https://images.unsplash.com/photo-${1540575467063 + i}?w=800&h=400&fit=crop`
+        })
       }
+      
+      setUserTickets(tickets)
     } catch (error) {
       console.error("Error fetching user tickets:", error)
+      setUserTickets([])
     }
   }
 
   const updateResaleListings = async () => {
     try {
       const provider = new ethers.BrowserProvider(window.ethereum!)
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider)
+      const contract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider)
 
-      const totalSupply = await contract.totalSupply()
+      const activeListingIds = await contract.getActiveListings()
       const listings: ResaleListing[] = []
 
-      for (let i = 0; i < totalSupply; i++) {
-        const details = await contract.getTicketDetails(i)
-        if (details.isForSale) {
-          listings.push({
-            tokenId: i.toString(),
-            owner: details.owner,
-            isForSale: details.isForSale,
-            price: details.price,
-          })
-        }
+      for (const listingId of activeListingIds) {
+        const listing = await contract.getListing(listingId)
+        listings.push({
+          tokenId: listingId.toString(),
+          owner: listing.seller,
+          isForSale: listing.active,
+          price: listing.price,
+        })
       }
 
-      // If no listings found from blockchain, add dummy listings
-      if (listings.length === 0) {
-        const dummyListings = [
-          {
-            tokenId: "42",
-            owner: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
-            isForSale: true,
-            price: ethers.parseEther("0.5"),
-          },
-          {
-            tokenId: "137",
-            owner: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-            isForSale: true,
-            price: ethers.parseEther("0.75"),
-          },
-          {
-            tokenId: "256",
-            owner: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-            isForSale: true,
-            price: ethers.parseEther("1.2"),
-          },
-          {
-            tokenId: "512",
-            owner: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-            isForSale: true,
-            price: ethers.parseEther("0.9"),
-          },
-        ]
-        setResaleListings(dummyListings)
-      } else {
-        setResaleListings(listings)
-      }
+      setResaleListings(listings)
     } catch (error) {
       console.error("Error fetching resale listings:", error)
-      // Add dummy listings in case of error
-      const dummyListings = [
-        {
-          tokenId: "42",
-          owner: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
-          isForSale: true,
-          price: ethers.parseEther("0.5"),
-        },
-        {
-          tokenId: "137",
-          owner: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-          isForSale: true,
-          price: ethers.parseEther("0.75"),
-        },
-        {
-          tokenId: "256",
-          owner: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-          isForSale: true,
-          price: ethers.parseEther("1.2"),
-        },
-        {
-          tokenId: "512",
-          owner: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-          isForSale: true,
-          price: ethers.parseEther("0.9"),
-        },
-      ]
-      setResaleListings(dummyListings)
+      setResaleListings([])
     }
   }
 
@@ -198,19 +149,28 @@ const QuantumTicketResale = () => {
       setIsLoading(true)
       setError(null)
 
-      // SYSTEM DETERMINED PRICE LOGIC
-      // For demo purposes, we set a standard resale price or calculate based on ticket type
-      // Real implementation might fetch this from an oracle or contract constant
-      const SYSTEM_PRICE = "0.5"; // 0.5 AVAX fixed system price for now
-
-      await validateNetwork()
-
       const provider = new ethers.BrowserProvider(window.ethereum!)
       const signer = await provider.getSigner()
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
+      
+      const ticketContract = CONTRACTS.TICKET_NFT_IMPLEMENTATION
+      
+      // Step 1: Approve Marketplace to handle the NFT
+      const nftABI = [
+        "function approve(address to, uint256 tokenId) external",
+        "function getApproved(uint256 tokenId) external view returns (address)"
+      ]
+      const nftContract = new ethers.Contract(ticketContract, nftABI, signer)
+      
+      const approved = await nftContract.getApproved(ticket.tokenId)
+      if (approved.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase()) {
+        const approveTx = await nftContract.approve(MARKETPLACE_ADDRESS, ticket.tokenId)
+        await approveTx.wait()
+      }
 
+      // Step 2: List on Marketplace
+      const contract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer)
       const priceInWei = ethers.parseEther(SYSTEM_PRICE)
-      const tx = await contract.listTicketForSale(ticket.tokenId, priceInWei)
+      const tx = await contract.listTicket(ticketContract, ticket.tokenId, 1, priceInWei)
       await tx.wait()
 
       await updateUserTickets()
@@ -225,7 +185,7 @@ const QuantumTicketResale = () => {
     }
   }
 
-  const handleBuyResaleTicket = async (tokenId: string, price: bigint) => {
+  const handleBuyResaleTicket = async (listingId: string, price: bigint) => {
     try {
       setIsLoading(true)
       setError(null)
@@ -234,9 +194,9 @@ const QuantumTicketResale = () => {
 
       const provider = new ethers.BrowserProvider(window.ethereum!)
       const signer = await provider.getSigner()
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
+      const contract = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, signer)
 
-      const tx = await contract.buyResaleTicket(tokenId, {
+      const tx = await contract.buyTicket(listingId, {
         value: price,
         maxFeePerGas: ethers.parseUnits('25', 'gwei'),
         maxPriorityFeePerGas: ethers.parseUnits('1', 'gwei')
