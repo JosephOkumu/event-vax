@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { ethers } from 'ethers';
-import { CheckCircle, XCircle, Loader, Scan } from 'lucide-react';
+import { CheckCircle, XCircle, Loader, Scan, Info } from 'lucide-react';
 import { QRVerificationABI } from '../abi';
 import { CONTRACTS } from '../config/contracts';
 import { useWallet } from '../contexts/WalletContext';
@@ -11,7 +11,7 @@ const QRScanner = () => {
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
   const [scanner, setScanner] = useState(null);
-  const [attendeeInfo, setAttendeeInfo] = useState(null);
+  const [ticketInfo, setTicketInfo] = useState(null);
 
   useEffect(() => {
     const qrScanner = new Html5QrcodeScanner(
@@ -30,7 +30,7 @@ const QRScanner = () => {
     scanner.pause();
     setStatus('verifying');
     setMessage('Verifying ticket...');
-    setAttendeeInfo(null);
+    setTicketInfo(null);
 
     try {
       const qrData = JSON.parse(decodedText);
@@ -49,7 +49,8 @@ const QRScanner = () => {
         signer
       );
 
-      const tx = await contract.verifyAndCheckIn(
+      // Verify signature only (no check-in)
+      const [valid, reason] = await contract.verifyQRSignature(
         qrData.eventId,
         qrData.attendee,
         qrData.tierId,
@@ -59,18 +60,19 @@ const QRScanner = () => {
         qrData.signature
       );
 
-      await tx.wait();
+      if (!valid) throw new Error(reason);
 
       setStatus('success');
-      setMessage('✓ Check-in Successful');
-      setAttendeeInfo({
+      setMessage('✓ Ticket Valid');
+      setTicketInfo({
         address: `${qrData.attendee.slice(0, 6)}...${qrData.attendee.slice(-4)}`,
-        tier: ['Regular', 'VIP', 'VVIP'][qrData.tierId] || 'General'
+        tier: ['Regular', 'VIP', 'VVIP'][qrData.tierId] || 'General',
+        eventId: qrData.eventId
       });
       
       setTimeout(() => {
         setStatus('idle');
-        setAttendeeInfo(null);
+        setTicketInfo(null);
         scanner.resume();
       }, 3000);
 
@@ -87,11 +89,10 @@ const QRScanner = () => {
 
   const getErrorMessage = (error) => {
     const msg = error.message || error.toString();
-    if (msg.includes('AlreadyCheckedIn')) return '✗ Already Checked In';
-    if (msg.includes('NoTicketOwned')) return '✗ Invalid Ticket';
-    if (msg.includes('DeadlineExpired')) return '✗ Ticket Expired';
-    if (msg.includes('EventNotStarted')) return '✗ Event Not Started';
-    if (msg.includes('EventEnded')) return '✗ Event Ended';
+    if (msg.includes('Nonce already used')) return '✗ Ticket Already Used';
+    if (msg.includes('QR already used')) return '✗ QR Code Already Scanned';
+    if (msg.includes('Deadline expired')) return '✗ Ticket Expired';
+    if (msg.includes('Invalid signature')) return '✗ Invalid Ticket';
     if (msg.includes('user rejected')) return '✗ Transaction Rejected';
     return '✗ Verification Failed';
   };
@@ -101,9 +102,17 @@ const QRScanner = () => {
       <div className="max-w-md w-full">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-            QR Scanner
+            Universal Ticket Verifier
           </h1>
-          <p className="text-gray-400">Scan ticket to verify entry</p>
+          <p className="text-gray-400">Verify ticket authenticity (no check-in)</p>
+          <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <div className="flex items-start space-x-2">
+              <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-blue-300 text-left">
+                This scanner only verifies tickets. For event check-in with POAP minting, use the scanner in Event Dashboard.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div id="qr-reader" className="rounded-xl overflow-hidden mb-6 border-2 border-purple-500/30" />
@@ -126,10 +135,11 @@ const QRScanner = () => {
           <div className="p-6 rounded-xl text-center bg-green-500/20 border-2 border-green-500">
             <CheckCircle className="w-16 h-16 mx-auto mb-3 text-green-400" />
             <p className="text-2xl font-bold mb-3">{message}</p>
-            {attendeeInfo && (
+            {ticketInfo && (
               <div className="text-sm space-y-1">
-                <p className="text-gray-300">Attendee: {attendeeInfo.address}</p>
-                <p className="text-purple-400 font-semibold">{attendeeInfo.tier} Ticket</p>
+                <p className="text-gray-300">Owner: {ticketInfo.address}</p>
+                <p className="text-purple-400 font-semibold">{ticketInfo.tier} Ticket</p>
+                <p className="text-gray-400">Event ID: {ticketInfo.eventId}</p>
               </div>
             )}
           </div>
