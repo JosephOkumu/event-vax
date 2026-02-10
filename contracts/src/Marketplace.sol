@@ -194,6 +194,8 @@ contract Marketplace is ERC1155Holder, ReentrancyGuard, Pausable, AccessControl 
             (bool success,) = payable(msg.sender).call{value: msg.value - listing.price}("");
             require(success, "Refund failed");
         }
+
+        emit Sold(listingId, msg.sender, listing.seller, listing.price);
      }
 
         /**
@@ -262,6 +264,32 @@ contract Marketplace is ERC1155Holder, ReentrancyGuard, Pausable, AccessControl 
         function setRoyaltyBps(uint256 _royaltyBps) external onlyRole(PLATFORM_ADMIN) {
             require(_royaltyBps <= 500, "Royalty too high"); // Max 5%
             royaltyBps = _royaltyBps;
+        }
+
+        /**
+        * @notice Get all active listings
+        */
+        function getActiveListings() external view returns (uint256[] memory) {
+            uint256 count = 0;
+            for (uint256 i = 1; i <= nextListingId; i++) {
+                if (listings[i].active) count++;
+            }
+            
+            uint256[] memory activeIds = new uint256[](count);
+            uint256 index = 0;
+            for (uint256 i = 1; i <= nextListingId; i++) {
+                if (listings[i].active) {
+                    activeIds[index++] = i;
+                }
+            }
+            return activeIds;
+        }
+
+        /**
+        * @notice Get listing details
+        */
+        function getListing(uint256 listingId) external view returns (Listing memory) {
+            return listings[listingId];
         }
 
         /**
