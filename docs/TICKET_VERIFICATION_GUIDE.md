@@ -119,8 +119,8 @@ Parameters:
 - **Gas Fees**: Minimal (< $0.01 per transaction)
 
 ### Smart Contracts
-- **EventFactory**: `0x53687CccF774FDa60fE2bd4720237fbb8e4fd02c`
-- **QR Verification**: `0xd04E0B0959Ceb4f5Be7e29fc0d072368C1EC0e06`
+- **EventFactory**: `0x4FC9267E6Ef419be7700e3936Fc51D2835e257D0`
+- **QR Verification**: `0x89dABaf2dC7aF4C06AF993E083115952cCd67E86`
 - **Explorer**: [Snowtrace Testnet](https://testnet.snowtrace.io/)
 
 ## Best Practices
