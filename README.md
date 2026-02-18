@@ -232,7 +232,7 @@ Eventverse is a revolutionary blockchain-based ticketing platform engineered to 
 | Contract | Address |
 |----------|----------|
 | EventFactory | `0x4FC9267E6Ef419be7700e3936Fc51D2835e257D0` |
-| Marketplace | `0x072c6707E3fd1Bcc2f2177349402Ad5fdeB82F51` |
+| Marketplace | `0xCf77DF7434F9fd83866d877c87FDdCE87326895b` |
 | EventManager | `0x5876444b87757199Cd08f44193Bf7741FDA01EAD` |
 | QR Verification | `0x89dABaf2dC7aF4C06AF993E083115952cCd67E86` |
 | POAP | `0x323A6ddC3390192013bfe09Ea7d677c7469078c4` |

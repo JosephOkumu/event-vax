@@ -16,8 +16,23 @@ interface ITicketNFT {
 }
 
 interface IPOAP {
-    function awardPOAP(uint256 eventId, address attendee, bytes32 metadataHash) external;
+    function awardPOAP(uint256 eventId, address attendee, bytes32 metadataHash, string calldata ipfsHash) external;
     function claimed(uint256 eventId, address attendee) external view returns (bool);
+}
+
+interface IMetadataRegistry {
+    enum MetadataType { Event, Ticket, POAP, Badge }
+    
+    struct Metadata {
+        string ipfsHash;
+        bytes32 contentHash;
+        uint256 timestamp;
+        address updatedBy;
+        bool frozen;
+    }
+    
+    function getMetadata(MetadataType entityType, uint256 entityId) external view returns (Metadata memory);
+    function metadataExists(MetadataType entityType, uint256 entityId) external view returns (bool);
 }
 
 /** 
@@ -58,6 +73,7 @@ contract QRVerificationSystem is AccessControl, EIP712, ReentrancyGuard {
     mapping(uint256 => EventCheckIn) public eventCheckIns;
 
     IEventManager public eventManager;
+    IMetadataRegistry public metadataRegistry;
 
     // eventId => attendee => CheckInRecord[]
     mapping(uint256 => mapping(address => CheckInRecord[])) public checkInHistory;
@@ -118,6 +134,10 @@ contract QRVerificationSystem is AccessControl, EIP712, ReentrancyGuard {
 
     function setEventManager(address _eventManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
         eventManager = IEventManager(_eventManager);
+    }
+
+    function setMetadataRegistry(address _metadataRegistry) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        metadataRegistry = IMetadataRegistry(_metadataRegistry);
     }
 
     /**
@@ -235,8 +255,20 @@ contract QRVerificationSystem is AccessControl, EIP712, ReentrancyGuard {
             IPOAP poapContract = IPOAP (checkIn.poapContract);
 
             if (!poapContract.claimed(eventId, attendee)) {
-                bytes32 metadataHash = keccak256(abi.encodePacked(eventId, attendee, block.timestamp));
-                poapContract.awardPOAP(eventId, attendee, metadataHash);
+                // Retrieve IPFS metadata from MetadataRegistry
+                string memory ipfsHash = "";
+                bytes32 contentHash = keccak256(abi.encodePacked(eventId, attendee, block.timestamp));
+                
+                if (address(metadataRegistry) != address(0)) {
+                    try metadataRegistry.getMetadata(IMetadataRegistry.MetadataType.POAP, eventId) returns (IMetadataRegistry.Metadata memory metadata) {
+                        if (bytes(metadata.ipfsHash).length > 0) {
+                            ipfsHash = metadata.ipfsHash;
+                            contentHash = metadata.contentHash;
+                        }
+                    } catch {}
+                }
+                
+                poapContract.awardPOAP(eventId, attendee, contentHash, ipfsHash);
                 poapAwarded = true;
                 emit POAPAwarded(eventId, attendee);
             }
@@ -290,8 +322,20 @@ contract QRVerificationSystem is AccessControl, EIP712, ReentrancyGuard {
             bool poapAwarded = false;
             if (checkIn.poapContract != address(0)) {
                 if (!poapContract.claimed(eventId, attendee)) {
-                    bytes32 metadataHash = keccak256(abi.encodePacked(eventId, attendee, block.timestamp));
-                    poapContract.awardPOAP(eventId, attendee, metadataHash);
+                    // Retrieve IPFS metadata from MetadataRegistry
+                    string memory ipfsHash = "";
+                    bytes32 contentHash = keccak256(abi.encodePacked(eventId, attendee, block.timestamp));
+                    
+                    if (address(metadataRegistry) != address(0)) {
+                        try metadataRegistry.getMetadata(IMetadataRegistry.MetadataType.POAP, eventId) returns (IMetadataRegistry.Metadata memory metadata) {
+                            if (bytes(metadata.ipfsHash).length > 0) {
+                                ipfsHash = metadata.ipfsHash;
+                                contentHash = metadata.contentHash;
+                            }
+                        } catch {}
+                    }
+                    
+                    poapContract.awardPOAP(eventId, attendee, contentHash, ipfsHash);
                     poapAwarded = true;
                 }
             }

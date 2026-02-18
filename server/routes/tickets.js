@@ -84,11 +84,44 @@ router.get('/wallet/:walletAddress', async (req, res) => {
             SELECT t.*, e.event_name, e.event_date, e.venue, e.flyer_image, e.description
             FROM tickets t
             LEFT JOIN events e ON t.event_id = e.id
-            WHERE t.wallet_address = ?
+            WHERE LOWER(t.wallet_address) = LOWER(?)
             ORDER BY t.created_at DESC
         `).all(walletAddress);
 
-        res.json({ success: true, tickets });
+        // Parse QR code to extract contract address and fetch tier price
+        const provider = new ethers.JsonRpcProvider(AVALANCHE_RPC);
+        const ticketsWithContract = await Promise.all(tickets.map(async (ticket) => {
+            let contractAddress = null;
+            let price = null;
+            if (ticket.qr_code) {
+                try {
+                    const qrData = JSON.parse(ticket.qr_code);
+                    contractAddress = qrData.contractAddress;
+                    
+                    // Fetch tier price from contract
+                    if (contractAddress && ticket.tier_id !== null) {
+                        try {
+                            const contract = new ethers.Contract(contractAddress, TicketNFTABI.abi, provider);
+                            const tierData = await contract.getTier(ticket.tier_id);
+                            price = ethers.formatEther(tierData.price);
+                            console.log(`✅ Fetched price for ticket ${ticket.id}, tier ${ticket.tier_id}: ${price} AVAX`);
+                        } catch (e) {
+                            console.warn(`⚠️ Failed to fetch price for ticket ${ticket.id}, tier ${ticket.tier_id}:`, e.message);
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`⚠️ Failed to parse QR code for ticket ${ticket.id}:`, e.message);
+                }
+            }
+            return { 
+                ...ticket, 
+                contract_address: contractAddress,
+                tier_id: ticket.tier_id,
+                price: price
+            };
+        }));
+
+        res.json({ success: true, tickets: ticketsWithContract });
     } catch (error) {
         console.error('❌ Error fetching tickets:', error);
         res.status(500).json({ success: false, error: 'Failed to fetch tickets' });

@@ -22,26 +22,6 @@ const QRVerificationSystem = () => {
   const [provider, setProvider] = useState(null);
   const [isInitializing, setIsInitializing] = useState(false);
 
-  // Mock Ticket Data
-  const mockTickets = [
-    {
-      id: 'AVBX2-1234',
-      event: 'Blockchain Summit 2025',
-      date: '2025-03-15',
-      venue: 'Tech Center',
-      price: '0.5 AVAX',
-      txHash: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
-    },
-    {
-      id: 'AVBX2-5678',
-      event: 'Web3 Conference',
-      date: '2025-04-01',
-      venue: 'Innovation Hub',
-      price: '0.8 AVAX',
-      txHash: '0x912d35Cc6634C0532925a3b844Bc454e4438f123'
-    }
-  ];
-
   // Initialize Connection and Event Listeners
   useEffect(() => {
     let mounted = true;
@@ -57,7 +37,7 @@ const QRVerificationSystem = () => {
             await initializeContract();
           }
         } catch (err) {
-          console.error('Connection check error:', err);
+          console.error('🔴 [DEBUG] Connection check error:', err);
         }
       }
     };
@@ -75,6 +55,7 @@ const QRVerificationSystem = () => {
       const handleChainChanged = () => window.location.reload();
 
       const handleAccountsChanged = async (accounts) => {
+        console.log('🔵 [DEBUG] Accounts changed:', accounts);
         if (accounts.length === 0) {
           setConnected(false);
           setContract(null);
@@ -100,6 +81,7 @@ const QRVerificationSystem = () => {
     
     try {
       setIsInitializing(true);
+      console.log('🔵 [DEBUG] Initializing contract...');
       
       if (!window.ethereum) {
         throw new Error('MetaMask is not installed');
@@ -109,8 +91,12 @@ const QRVerificationSystem = () => {
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
+      const signerAddress = await signer.getAddress();
+      console.log('🔵 [DEBUG] Signer address:', signerAddress);
       
       const network = await provider.getNetwork();
+      console.log('🔵 [DEBUG] Network:', { chainId: network.chainId.toString(), name: network.name });
+      
       if (network.chainId !== BigInt(NETWORK.CHAIN_ID)) {
         throw new Error('Not connected to Avalanche C-Chain');
       }
@@ -120,13 +106,15 @@ const QRVerificationSystem = () => {
         QRVerificationABI.abi,
         signer
       );
+      
+      console.log('✅ [DEBUG] Contract initialized:', CONTRACTS.QR_VERIFICATION);
 
       setProvider(provider);
       setContract(ticketContract);
       setConnected(true);
       setError(null);
     } catch (err) {
-      console.error('Contract initialization error:', err);
+      console.error('🔴 [DEBUG] Contract initialization error:', err);
       setError(err.message);
       setConnected(false);
     } finally {
@@ -140,12 +128,13 @@ const QRVerificationSystem = () => {
     
     try {
       setIsInitializing(true);
+      console.log('🔵 [DEBUG] Connecting wallet...');
       await window.ethereum.request({
         method: 'eth_requestAccounts'
       });
       await initializeContract();
     } catch (err) {
-      console.error('Wallet connection error:', err);
+      console.error('🔴 [DEBUG] Wallet connection error:', err);
       setError(err.message);
     } finally {
       setIsInitializing(false);
@@ -154,17 +143,20 @@ const QRVerificationSystem = () => {
 
   // QR Code Generation
   const generateQRCode = (ticketData) => {
+    console.log('🔵 [DEBUG] Selected ticket:', ticketData);
     setSelectedTicket(ticketData);
   };
 
   // Ticket Verification with POAP Minting
   const verifyTicketOnBlockchain = async () => {
     if (!selectedTicket) {
+      console.error('🔴 [DEBUG] No ticket selected');
       setError('Please select a ticket to verify');
       return;
     }
 
     if (!connected || !contract) {
+      console.error('🔴 [DEBUG] Wallet not connected');
       setError('Please connect your wallet first');
       return;
     }
@@ -172,30 +164,112 @@ const QRVerificationSystem = () => {
     try {
       setIsVerifying(true);
       setError(null);
+      console.log('🔵 [DEBUG] Starting verification for ticket:', selectedTicket);
 
       await validateNetwork();
 
-      const tx = await contract.verifyTicket(selectedTicket.id);
+      const signer = await provider.getSigner();
+      const attendee = await signer.getAddress();
+      console.log('🔵 [DEBUG] Attendee address:', attendee);
+
+      // Get current nonce
+      const currentNonce = await contract.getCurrentNonce(attendee);
+      const nonce = Number(currentNonce) + 1;
+      const timestamp = Math.floor(Date.now() / 1000);
+      const deadline = timestamp + 86400;
+
+      console.log('🔵 [DEBUG] Verification params:', {
+        eventId: selectedTicket.eventId,
+        attendee,
+        tierId: selectedTicket.tierId,
+        nonce,
+        timestamp,
+        deadline
+      });
+
+      // Generate EIP-712 signature
+      const domain = {
+        name: 'QRVerificationSystem',
+        version: '1',
+        chainId: NETWORK.CHAIN_ID,
+        verifyingContract: CONTRACTS.QR_VERIFICATION
+      };
+
+      const types = {
+        QRVerify: [
+          { name: 'eventId', type: 'uint256' },
+          { name: 'attendee', type: 'address' },
+          { name: 'tierId', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'timestamp', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' }
+        ]
+      };
+
+      const value = {
+        eventId: selectedTicket.eventId,
+        attendee,
+        tierId: selectedTicket.tierId,
+        nonce,
+        timestamp,
+        deadline
+      };
+
+      console.log('🔵 [DEBUG] Signing typed data...');
+      const signature = await signer.signTypedData(domain, types, value);
+      console.log('✅ [DEBUG] Signature generated:', signature);
+
+      console.log('🔵 [DEBUG] Calling verifyAndCheckIn...');
+      const tx = await contract.verifyAndCheckIn(
+        selectedTicket.eventId,
+        attendee,
+        selectedTicket.tierId,
+        nonce,
+        timestamp,
+        deadline,
+        signature
+      );
+      
+      console.log('🔵 [DEBUG] Transaction sent:', tx.hash);
       const receipt = await tx.wait();
+      console.log('✅ [DEBUG] Transaction confirmed:', receipt);
       
       if (receipt.status === 1) {
+        console.log('✅ [DEBUG] Verification successful!');
         setVerificationStatus('success');
         
         // Auto-mint POAP after successful check-in
         await mintPoapOnCheckIn(selectedTicket.id);
       } else {
+        console.error('🔴 [DEBUG] Transaction failed');
         setVerificationStatus('error ');
         throw new Error('Transaction failed');
       }
     } catch (err) {
-      console.error('Verification error:', err);
+      console.error('🔴 [DEBUG] Verification error:', {
+        message: err.message,
+        code: err.code,
+        data: err.data,
+        reason: err.reason
+      });
+      
       if (err.code === 4001) {
+        console.log('🔴 [DEBUG] User rejected transaction');
         setVerificationStatus(null);
       } else if (err.code === -32602) {
         setError('Invalid request. Please check your MetaMask connection.');
         setVerificationStatus('error');
+      } else if (err.message?.includes('AlreadyCheckedIn')) {
+        setError('Ticket already checked in');
+        setVerificationStatus('error');
+      } else if (err.message?.includes('NoTicketOwned')) {
+        setError('You do not own this ticket');
+        setVerificationStatus('error');
+      } else if (err.message?.includes('InvalidSignature')) {
+        setError('Invalid signature - QR code may be corrupted');
+        setVerificationStatus('error');
       } else {
-        setError(err.message || 'Verification failed');
+        setError(err.reason || err.message || 'Verification failed');
         setVerificationStatus('error');
       }
     } finally {
@@ -206,21 +280,29 @@ const QRVerificationSystem = () => {
   // Mint POAP on Check-in
   const mintPoapOnCheckIn = async (ticketId) => {
     try {
+      console.log('🔵 [DEBUG] Attempting POAP mint for ticket:', ticketId);
+      if (!selectedTicket) {
+        console.warn('⚠️ [DEBUG] No ticket selected for POAP minting');
+        return;
+      }
       const signer = await provider.getSigner();
       const attendeeAddress = await signer.getAddress();
       
-      // Extract eventId from ticketId (format: AVBX2-1234)
-      const eventId = ticketId.split('-')[0];
+      // Use selectedTicket.eventId directly instead of parsing ticketId
+      const eventId = selectedTicket.eventId;
+      console.log('🔵 [DEBUG] Event ID:', eventId);
       
       // Get POAP data from backend
       const eventResponse = await fetch(`${API_BASE_URL}/api/events/${eventId}`);
+      if (!eventResponse.ok) throw new Error('Failed to fetch event data');
       const event = await eventResponse.json();
       
       if (!event.data?.poap_content_hash) {
-        console.log('No POAP available for this event');
+        console.log('⚠️ [DEBUG] No POAP available for this event');
         return;
       }
       
+      console.log('🔵 [DEBUG] Minting POAP...');
       // Mint POAP
       const poapContract = new ethers.Contract(CONTRACTS.POAP, POAPABI.abi, signer);
       const tx = await poapContract.awardPOAP(
@@ -230,9 +312,9 @@ const QRVerificationSystem = () => {
       );
       await tx.wait();
       
-      console.log('🎉 POAP minted successfully!');
+      console.log('✅ [DEBUG] POAP minted successfully!');
     } catch (error) {
-      console.warn('⚠️ POAP minting failed:', error);
+      console.warn('⚠️ [DEBUG] POAP minting failed:', error);
     }
   };
 
@@ -241,6 +323,12 @@ const QRVerificationSystem = () => {
       <div className="max-w-7xl mx-auto relative">
         {/* Connection Status */}
         <div className="mb-4 text-center">
+          {error && (
+            <div className="mb-4 p-4 bg-red-900/20 border border-red-500/30 rounded-lg text-red-400">
+              <AlertTriangle className="w-5 h-5 inline mr-2" />
+              {error}
+            </div>
+          )}
           {!connected ? (
             <button
               onClick={connectWallet}
@@ -273,41 +361,6 @@ const QRVerificationSystem = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          {/* Ticket Selection */}
-          <div className="space-y-6">
-            <div className="bg-purple-900/20 backdrop-blur-xl rounded-xl p-6 border border-purple-500/20">
-              <h2 className="text-xl font-semibold mb-6 flex items-center">
-                <Ticket className="w-5 h-5 mr-2 text-purple-400" />
-                Select Ticket to Verify
-              </h2>
-              
-              <div className="space-y-4">
-                {mockTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    onClick={() => generateQRCode(ticket)}
-                    className={`group relative p-4 rounded-lg border border-purple-500/20 cursor-pointer 
-                      transition-all duration-300 hover:border-purple-500/40 
-                      ${selectedTicket?.id === ticket.id ? 'bg-purple-900/40' : 'bg-purple-900/20'}`}
-                  >
-                    <div className="relative z-10">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold text-purple-300">{ticket.event}</h3>
-                        <span className="text-sm text-gray-400">{ticket.id}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-400">
-                        <div>Date: {ticket.date}</div>
-                        <div>Venue: {ticket.venue}</div>
-                        <div>Price: {ticket.price}</div>
-                        <div className="truncate">Tx: {ticket.txHash}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
           {/* QR Code and Verification */}
           <div className="space-y-6">
             <div className="bg-purple-900/20 backdrop-blur-xl rounded-xl p-6 border border-purple-500/20">

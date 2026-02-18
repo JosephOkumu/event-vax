@@ -213,7 +213,7 @@ export const updateEventPoap = (id, poapData) => {
         poapData.supplyType || null,
         poapData.supplyCount || null,
         poapData.imageUrl || null,
-        poapData.imageBase64 || null,
+        poapData.imageBase64 || null, // Keep base64 for instant fallback
         id
     );
     

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 import { API_BASE_URL } from '../config/api';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -52,44 +53,95 @@ const EventDashboard = () => {
 
   const handleCheckIn = async (guestId) => {
     try {
-      await fetch(`${API_BASE_URL}/api/tickets/${guestId}/checkin`, {
-        method: 'PATCH',
+      const guest = allGuests.find(g => g.id === guestId);
+      if (!guest) return;
+      
+      // Perform blockchain check-in
+      if (!window.ethereum) throw new Error('Wallet not found');
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      const signer = await provider.getSigner();
+      
+      // Get blockchain event ID
+      const eventResponse = await fetch(`${API_BASE_URL}/api/events/${eventData.id}`);
+      if (!eventResponse.ok) throw new Error('Failed to fetch event data');
+      const eventResult = await eventResponse.json();
+      if (!eventResult.data?.blockchain_event_id) throw new Error('Blockchain event ID not found');
+      const blockchainEventId = eventResult.data.blockchain_event_id;
+      
+      if (!blockchainEventId) {
+        throw new Error('Blockchain event ID not found');
+      }
+      
+      // Import QRVerificationABI
+      const { QRVerificationABI } = await import('../abi');
+      const { CONTRACTS } = await import('../config/contracts');
+      
+      const contract = new ethers.Contract(
+        CONTRACTS.QR_VERIFICATION,
+        QRVerificationABI.abi,
+        signer
+      );
+      
+      // Get tier ID from guest data (assuming tier_id is stored)
+      const tierId = typeof guest.tier_id === 'number' ? guest.tier_id : 0;
+      
+      // Batch check-in via blockchain (organizer can check in attendees)
+      const tx = await contract.batchCheckIn(
+        blockchainEventId,
+        [guest.fullWallet],
+        [tierId]
+      );
+      const receipt = await tx.wait();
+      
+      // Update database
+      const syncResponse = await fetch(`${API_BASE_URL}/api/verification/sync-checkin`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkedIn: true })
+        body: JSON.stringify({
+          eventId: blockchainEventId,
+          attendee: guest.fullWallet,
+          txHash: receipt.hash
+        })
       });
+      if (!syncResponse.ok) {
+        const error = await syncResponse.json();
+        throw new Error(error.error || 'Database sync failed');
+      }
       
       setAllGuests(prevGuests =>
-        prevGuests.map(guest =>
-          guest.id === guestId ? { ...guest, checkedIn: true } : guest
+        prevGuests.map(g =>
+          g.id === guestId ? { ...g, checkedIn: true } : g
         )
       );
       
+      // POAP is awarded automatically by batchCheckIn contract
+      // But request via relayer as fallback
       if (eventData?.poap) {
-        const guest = allGuests.find(g => g.id === guestId);
-        if (guest) {
-          try {
-            const eventResponse = await fetch(`${API_BASE_URL}/api/events/${eventData.id}`);
-            const eventResult = await eventResponse.json();
-            const blockchainEventId = eventResult.data?.blockchain_event_id;
-            
-            if (blockchainEventId) {
-              await fetch(`${API_BASE_URL}/api/poap/request`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  eventId: blockchainEventId, 
-                  walletAddress: guest.fullWallet 
-                })
-              });
-              console.log('POAP requested for:', guest.fullWallet);
-            }
-          } catch (poapErr) {
-            console.warn('POAP request failed:', poapErr);
-          }
+        try {
+          await fetch(`${API_BASE_URL}/api/poap/request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              eventId: blockchainEventId, 
+              walletAddress: guest.fullWallet 
+            })
+          });
+        } catch (poapErr) {
+          console.warn('POAP relayer request failed (contract may have already awarded):', poapErr);
         }
       }
+      
+      console.log('✅ Check-in successful for:', guest.fullWallet);
     } catch (error) {
       console.error('Check-in failed:', error);
+      const userMessage = error.message.includes('user rejected') 
+        ? 'Transaction cancelled' 
+        : error.message.includes('Wallet not found')
+        ? 'Please connect your wallet'
+        : 'Check-in failed. Please try again.';
+      alert(userMessage);
     }
   };
 

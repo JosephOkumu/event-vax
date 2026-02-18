@@ -219,8 +219,8 @@ const QuantumMintNFT = () => {
       // Use stored blockchain_event_id
       const blockchainEventId = eventData.rawData.blockchain_event_id;
       
-      if (!blockchainEventId) {
-        throw new Error('This event was not properly created on the blockchain. Please contact the event organizer.');
+      if (!blockchainEventId || blockchainEventId === null || blockchainEventId === 'null') {
+        throw new Error('This event has not been deployed to the blockchain yet. Please contact the event organizer to complete the blockchain deployment.');
       }
 
       setMintingStatus('Loading event contract...');
@@ -232,10 +232,16 @@ const QuantumMintNFT = () => {
         provider
       );
       
-      const ticketContractAddress = await factoryContract.eventTicket(blockchainEventId);
+      let ticketContractAddress;
+      try {
+        ticketContractAddress = await factoryContract.eventTicket(blockchainEventId);
+      } catch (contractError) {
+        console.error('Factory contract error:', contractError);
+        throw new Error('Unable to connect to the blockchain. Please check your network connection and try again.');
+      }
       
-      if (ticketContractAddress === ethers.ZeroAddress) {
-        throw new Error('Event ticket contract not found on blockchain.');
+      if (!ticketContractAddress || ticketContractAddress === ethers.ZeroAddress) {
+        throw new Error(`Event ticket contract not found on blockchain. Event ID: ${blockchainEventId}. The event may not have been properly deployed. Please contact the event organizer.`);
       }
 
       setMintingStatus('Preparing purchase...');
@@ -325,14 +331,20 @@ const QuantumMintNFT = () => {
       // User-friendly error messages
       let userMessage = 'Failed to purchase tickets';
       
-      if (error.code === 'INSUFFICIENT_FUNDS') {
+      if (error.message?.includes('not been deployed to the blockchain')) {
+        userMessage = error.message;
+      } else if (error.message?.includes('Event ticket contract not found')) {
+        userMessage = error.message;
+      } else if (error.message?.includes('Unable to connect to the blockchain')) {
+        userMessage = error.message;
+      } else if (error.code === 'INSUFFICIENT_FUNDS') {
         userMessage = 'Insufficient AVAX balance. Please add funds to your wallet.';
       } else if (error.message?.includes('insufficient funds')) {
         userMessage = 'Insufficient AVAX balance. Please add funds to your wallet.';
       } else if (error.message?.includes('user rejected')) {
         userMessage = 'Transaction cancelled by user';
       } else if (error.message?.includes('network')) {
-        userMessage = 'Network error. Please check your connection.';
+        userMessage = 'Network error. Please check your connection and ensure you are on Avalanche Fuji Testnet.';
       }
       
       setError(userMessage);
@@ -827,6 +839,20 @@ const QuantumMintNFT = () => {
             </div>
           </div>
         </div>
+
+        {/* Blockchain Status Debug (only show if there's an issue) */}
+        {eventData && !loadingEvent && process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+            <h4 className="text-gray-400 font-semibold mb-2 text-xs">Debug Info (Dev Only)</h4>
+            <div className="text-xs text-gray-500 space-y-1 font-mono">
+              <div>Event ID: {eventId}</div>
+              <div>Blockchain Event ID: {eventData.rawData?.blockchain_event_id || 'NOT SET'}</div>
+              <div className={eventData.rawData?.blockchain_event_id ? 'text-green-400' : 'text-red-400'}>
+                Status: {eventData.rawData?.blockchain_event_id ? '✓ Ready for minting' : '✗ Not deployed to blockchain'}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Success Modal */}

@@ -19,6 +19,9 @@ contract POAP is ERC721, AccessControl {
     // tokenId => eventId
     mapping(uint256 => uint256) public tokenEvent;
 
+    // tokenId => IPFS hash
+    mapping(uint256 => string) private _tokenURIs;
+    
     // tokenId => metadata hash (encrypted off-chain data)
     mapping(uint256 => bytes32) public metadataHash;
 
@@ -40,12 +43,14 @@ contract POAP is ERC721, AccessControl {
     * @notice Award POAP to attendee after check-in
     * @param eventId Event identifier
     * @param attendee Ticket holder address
-    * @param _metadataHash of encrypted off-chain metadata
+    * @param _metadataHash Content hash from MetadataRegistry
+    * @param ipfsHash IPFS metadata URI from MetadataRegistry
     */
     function awardPOAP(
         uint256 eventId,
         address attendee,
-        bytes32 _metadataHash
+        bytes32 _metadataHash,
+        string calldata ipfsHash
     ) external onlyRole(VERIFIER_ROLE) {
         if (claimed[eventId][attendee]) revert AlreadyClaimed();
 
@@ -55,6 +60,7 @@ contract POAP is ERC721, AccessControl {
 
         tokenEvent[tokenId] = eventId;
         metadataHash[tokenId] = _metadataHash;
+        _tokenURIs[tokenId] = ipfsHash;
 
         _safeMint(attendee, tokenId);
 
@@ -62,13 +68,23 @@ contract POAP is ERC721, AccessControl {
     }
 
     /**
+    * @notice Get token URI (ERC721 standard)
+    */
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        _requireOwned(tokenId);
+        return _tokenURIs[tokenId];
+    }
+
+    /**
     * @notice Public mint for free POAPs
     * @param eventId Event identifier
     * @param _metadataHash of encrypted off-chain metadata
+    * @param ipfsHash IPFS metadata URI
     */
     function mintPOAP(
         uint256 eventId,
-        bytes32 _metadataHash
+        bytes32 _metadataHash,
+        string calldata ipfsHash
     ) external {
         if (claimed[eventId][msg.sender]) revert AlreadyClaimed();
 
@@ -78,6 +94,7 @@ contract POAP is ERC721, AccessControl {
 
         tokenEvent[tokenId] = eventId;
         metadataHash[tokenId] = _metadataHash;
+        _tokenURIs[tokenId] = ipfsHash;
 
         _safeMint(msg.sender, tokenId);
 
@@ -90,10 +107,11 @@ contract POAP is ERC721, AccessControl {
     function awardPOAPBatch(
         uint256 eventId,
         address[] calldata attendees,
-        bytes32[] calldata metadataHashes
+        bytes32[] calldata metadataHashes,
+        string[] calldata ipfsHashes
     ) external onlyRole(VERIFIER_ROLE) {
         uint256 length = attendees.length;
-        require(length == metadataHashes.length, "LENGTH_MISMATCH");
+        require(length == metadataHashes.length && length == ipfsHashes.length, "LENGTH_MISMATCH");
 
         for (uint256 i = 0; i < length; i++) {
             address attendee = attendees[i];
@@ -105,6 +123,7 @@ contract POAP is ERC721, AccessControl {
 
             tokenEvent[tokenId] = eventId;
             metadataHash[tokenId] = metadataHashes[i];
+            _tokenURIs[tokenId] = ipfsHashes[i];
 
             _safeMint(attendee, tokenId);
 

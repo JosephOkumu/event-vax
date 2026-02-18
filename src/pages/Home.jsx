@@ -402,7 +402,7 @@ const UltimateEventPlatform = () => {
                           <span className="text-sm font-semibold text-purple-400">
                             {format(event.regular_price || event.vip_price || event.vvip_price || '0.0')}
                           </span>
-                          {event.poap_ipfs_hash && (
+                          {(event.poap_ipfs_hash || event.poap_image_base64) && (
                             <span className="px-2 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded-full text-xs text-yellow-400 flex items-center space-x-1">
                               <Star className="w-3 h-3" />
                               <span>POAP</span>

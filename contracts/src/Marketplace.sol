@@ -33,7 +33,7 @@ contract Marketplace is ERC1155Holder, ReentrancyGuard, Pausable, AccessControl 
     mapping(uint256 => Listing) public listings;
 
     // Anti-scalping: time lock before resale
-    uint256 public constant LOCK_PERIOD = 1 days;
+    uint256 public constant LOCK_PERIOD = 0;
     
     // Price cap: mx 120% of original price
     uint256 public constant MAX_MARKUP_BPS = 12000; // 120%
@@ -151,10 +151,10 @@ contract Marketplace is ERC1155Holder, ReentrancyGuard, Pausable, AccessControl 
 
         if (!listing.active) revert ListingNotActive();
 
-        // Enforce time lock (anti-scalping)
-        if (block.timestamp < listing.listedAt + LOCK_PERIOD) {
-            revert LockPeriodActive();
-        }
+        // Enforce time lock (anti-scalping) - DISABLED
+        // if (block.timestamp < listing.listedAt + LOCK_PERIOD) {
+        //     revert LockPeriodActive();
+        // }
 
         if (msg.value < listing.price) revert InsufficientPayment();
 

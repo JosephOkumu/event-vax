@@ -397,6 +397,17 @@ const QuantumEventCreator = () => {
         });
       }
 
+      // Convert POAP image to base64 if present
+      let poapImageBase64 = null;
+      if (includePoap && poapData.image) {
+        poapImageBase64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(poapData.image);
+        });
+      }
+
       // Prepare event data
       const eventData = {
         eventName: formData.eventName,
@@ -413,7 +424,7 @@ const QuantumEventCreator = () => {
         blockchainEventId: blockchainEventId,
         poap: includePoap ? {
           ...poapData,
-          image: poapData.image ? poapPreview : null // Simplified for now, real implementation would upload to IPFS
+          image: poapImageBase64
         } : null
       };
 
@@ -491,7 +502,8 @@ const QuantumEventCreator = () => {
                   expiryDate: poapData.expiryDate,
                   supplyType: poapData.supplyType,
                   supplyCount: poapData.supplyCount,
-                  imageBase64: poapImageBase64
+                  imageUrl: poapResult.ipfsImageHash ? `ipfs://${poapResult.ipfsImageHash}` : null,
+                  imageBase64: poapImageBase64 // Keep base64 as instant fallback
                 })
               });
               console.log('✅ POAP uploaded to IPFS:', poapResult.ipfsHash);

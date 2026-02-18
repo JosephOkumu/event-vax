@@ -5,7 +5,7 @@ import { incrementPoapMinted } from './database.js';
 
 const POAP_ABI = [
   'function claimed(uint256 eventId, address attendee) view returns (bool)',
-  'function awardPOAP(uint256 eventId, address attendee, bytes32 metadataHash)',
+  'function awardPOAP(uint256 eventId, address attendee, bytes32 metadataHash, string ipfsHash)',
   'function hasRole(bytes32 role, address account) view returns (bool)'
 ];
 
@@ -63,7 +63,7 @@ class PoapRelayer {
         `SELECT pr.*, e.blockchain_event_id, e.id as db_event_id
          FROM poap_requests pr 
          JOIN events e ON pr.event_id = e.blockchain_event_id 
-         WHERE pr.status = ? AND pr.retry_count < 3
+         WHERE pr.status = ? AND pr.retry_count < 3 AND e.blockchain_event_id IS NOT NULL
          LIMIT 5`
       ).all('pending');
 
@@ -93,13 +93,27 @@ class PoapRelayer {
         return;
       }
 
-      const metadataHash = ethers.id(`poap-${request.event_id}-${request.wallet_address}-${Date.now()}`);
+      // Fetch IPFS hash from database
+      const event = db.prepare('SELECT poap_ipfs_hash, poap_content_hash FROM events WHERE blockchain_event_id = ?')
+        .get(request.event_id);
+      
+      if (!event?.poap_ipfs_hash) {
+        console.error(`❌ No IPFS hash found for event ${request.event_id}`);
+        db.prepare('UPDATE poap_requests SET status = ?, error = ? WHERE id = ?')
+          .run('failed', 'No IPFS metadata found', request.id);
+        return;
+      }
+
+      const metadataHash = event.poap_content_hash 
+        ? ethers.hexlify(event.poap_content_hash)
+        : ethers.id(`poap-${request.event_id}-${request.wallet_address}`);
       
       console.log(`🔄 Minting POAP for ${request.wallet_address.slice(0, 6)}...${request.wallet_address.slice(-4)}`);
       const tx = await this.contract.awardPOAP(
         request.event_id,
         request.wallet_address,
         metadataHash,
+        event.poap_ipfs_hash,
         { gasLimit: 300000 }
       );
 

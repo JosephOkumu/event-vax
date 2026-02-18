@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { ethers } from 'ethers';
 import { CheckCircle, XCircle, Loader, Scan, Info } from 'lucide-react';
@@ -10,8 +10,8 @@ const QRScanner = () => {
   const { validateNetwork } = useWallet();
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
-  const [scanner, setScanner] = useState(null);
   const [ticketInfo, setTicketInfo] = useState(null);
+  const scannerRef = useRef(null);
 
   useEffect(() => {
     const qrScanner = new Html5QrcodeScanner(
@@ -20,72 +20,93 @@ const QRScanner = () => {
       false
     );
 
+    const onScanSuccess = async (decodedText) => {
+      if (status !== 'idle') return; // Prevent multiple scans
+      
+      if (scannerRef.current?.pause) {
+        try {
+          await scannerRef.current.pause(true);
+        } catch (e) {
+          // Scanner not in scanning state
+        }
+      }
+      
+      setStatus('verifying');
+      setMessage('Verifying ticket...');
+      setTicketInfo(null);
+
+      try {
+        const qrData = JSON.parse(decodedText);
+        
+        if (!window.ethereum) throw new Error('Wallet not found');
+        
+        await validateNetwork();
+        
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const signer = await provider.getSigner();
+        
+        const contract = new ethers.Contract(
+          CONTRACTS.QR_VERIFICATION,
+          QRVerificationABI.abi,
+          signer
+        );
+
+        // Verify signature only (no check-in)
+        const [valid, reason] = await contract.verifyQRSignature(
+          qrData.eventId,
+          qrData.attendee,
+          qrData.tierId,
+          qrData.nonce,
+          qrData.timestamp,
+          qrData.deadline,
+          qrData.signature
+        );
+
+        if (!valid) throw new Error(reason);
+
+        setStatus('success');
+        setMessage('✓ Ticket Valid');
+        setTicketInfo({
+          address: `${qrData.attendee.slice(0, 6)}...${qrData.attendee.slice(-4)}`,
+          tier: ['Regular', 'VIP', 'VVIP'][qrData.tierId] || 'General',
+          eventId: qrData.eventId
+        });
+        
+        setTimeout(() => {
+          setStatus('idle');
+          setTicketInfo(null);
+          if (scannerRef.current?.resume) {
+            try {
+              scannerRef.current.resume();
+            } catch (e) {
+              // Scanner already scanning
+            }
+          }
+        }, 3000);
+
+      } catch (error) {
+        setStatus('error');
+        setMessage(getErrorMessage(error));
+        
+        setTimeout(() => {
+          setStatus('idle');
+          if (scannerRef.current?.resume) {
+            try {
+              scannerRef.current.resume();
+            } catch (e) {
+              // Scanner already scanning
+            }
+          }
+        }, 3000);
+      }
+    };
+
     qrScanner.render(onScanSuccess);
-    setScanner(qrScanner);
+    scannerRef.current = qrScanner;
 
     return () => qrScanner.clear().catch(() => {});
-  }, []);
-
-  const onScanSuccess = async (decodedText) => {
-    scanner.pause();
-    setStatus('verifying');
-    setMessage('Verifying ticket...');
-    setTicketInfo(null);
-
-    try {
-      const qrData = JSON.parse(decodedText);
-      
-      if (!window.ethereum) throw new Error('Wallet not found');
-      
-      await validateNetwork();
-      
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      const signer = await provider.getSigner();
-      
-      const contract = new ethers.Contract(
-        CONTRACTS.QR_VERIFICATION,
-        QRVerificationABI.abi,
-        signer
-      );
-
-      // Verify signature only (no check-in)
-      const [valid, reason] = await contract.verifyQRSignature(
-        qrData.eventId,
-        qrData.attendee,
-        qrData.tierId,
-        qrData.nonce,
-        qrData.timestamp,
-        qrData.deadline,
-        qrData.signature
-      );
-
-      if (!valid) throw new Error(reason);
-
-      setStatus('success');
-      setMessage('✓ Ticket Valid');
-      setTicketInfo({
-        address: `${qrData.attendee.slice(0, 6)}...${qrData.attendee.slice(-4)}`,
-        tier: ['Regular', 'VIP', 'VVIP'][qrData.tierId] || 'General',
-        eventId: qrData.eventId
-      });
-      
-      setTimeout(() => {
-        setStatus('idle');
-        setTicketInfo(null);
-        scanner.resume();
-      }, 3000);
-
-    } catch (error) {
-      setStatus('error');
-      setMessage(getErrorMessage(error));
-      
-      setTimeout(() => {
-        setStatus('idle');
-        scanner.resume();
-      }, 3000);
-    }
-  };
+  }, [validateNetwork]);
 
   const getErrorMessage = (error) => {
     const msg = error.message || error.toString();

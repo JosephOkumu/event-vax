@@ -5,16 +5,44 @@ import { API_BASE_URL } from '../config/api';
 export const ManualPoapMint = ({ eventId, walletAddress }) => {
   const [status, setStatus] = useState('checking');
   const [error, setError] = useState('');
+  const [blockchainEventId, setBlockchainEventId] = useState(null);
+  const [hasPoap, setHasPoap] = useState(false);
 
   useEffect(() => {
-    checkStatus();
-  }, [eventId, walletAddress]);
+    fetchEventData();
+  }, [eventId]);
 
-  const checkStatus = async () => {
-    if (!walletAddress || !eventId) return;
+  const fetchEventData = async () => {
+    if (!eventId) return;
     
     try {
-      const res = await fetch(`${API_BASE_URL}/api/poap/status/${eventId}/${walletAddress}`);
+      const res = await fetch(`${API_BASE_URL}/api/events/${eventId}`);
+      const data = await res.json();
+      
+      if (data.success && data.data) {
+        const bcEventId = data.data.blockchain_event_id;
+        const poapConfigured = data.data.poap_ipfs_hash || data.data.poap_image_base64;
+        
+        setBlockchainEventId(bcEventId);
+        setHasPoap(!!poapConfigured);
+        
+        if (bcEventId && poapConfigured && walletAddress) {
+          checkStatus(bcEventId);
+        } else {
+          setStatus('not_available');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch event:', err);
+      setStatus('not_available');
+    }
+  };
+
+  const checkStatus = async (bcEventId) => {
+    if (!walletAddress || !bcEventId) return;
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/poap/status/${bcEventId}/${walletAddress}`);
       const data = await res.json();
       setStatus(data.status);
     } catch (err) {
@@ -23,6 +51,11 @@ export const ManualPoapMint = ({ eventId, walletAddress }) => {
   };
 
   const requestPoap = async () => {
+    if (!blockchainEventId) {
+      setError('Event not on blockchain');
+      return;
+    }
+    
     setError('');
     setStatus('requesting');
 
@@ -30,14 +63,14 @@ export const ManualPoapMint = ({ eventId, walletAddress }) => {
       const res = await fetch(`${API_BASE_URL}/api/poap/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId, walletAddress })
+        body: JSON.stringify({ eventId: blockchainEventId, walletAddress })
       });
 
       const data = await res.json();
       if (data.success) {
         setStatus(data.status);
         if (data.status === 'pending') {
-          setTimeout(checkStatus, 5000);
+          setTimeout(() => checkStatus(blockchainEventId), 5000);
         }
       } else {
         setError(data.error);
@@ -49,7 +82,7 @@ export const ManualPoapMint = ({ eventId, walletAddress }) => {
     }
   };
 
-  if (status === 'issued' || status === 'checking') return null;
+  if (!hasPoap || status === 'issued' || status === 'checking' || status === 'not_available') return null;
 
   const isDisabled = status === 'pending' || status === 'processing' || status === 'requesting';
   const buttonContent = status === 'pending' || status === 'processing' 

@@ -7,23 +7,23 @@ import { QRVerificationABI } from '../abi';
 
 const TicketQR = ({ ticket }) => {
   const [qrData, setQrData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (ticket) generateQR();
-  }, [ticket]);
+
 
   const generateQR = async () => {
     try {
       setLoading(true);
       setError(null);
+      console.log('🔵 [DEBUG] Generating QR for ticket:', ticket);
 
       if (!window.ethereum) throw new Error('Wallet not connected');
 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const attendee = await signer.getAddress();
+      console.log('🔵 [DEBUG] Attendee:', attendee);
 
       const contract = new ethers.Contract(
         CONTRACTS.QR_VERIFICATION,
@@ -31,9 +31,19 @@ const TicketQR = ({ ticket }) => {
         signer
       );
 
-      const nonce = await contract.getCurrentNonce(attendee);
+      const currentNonce = await contract.getCurrentNonce(attendee);
+      const nonce = Number(currentNonce) + 1;
       const timestamp = Math.floor(Date.now() / 1000);
       const deadline = timestamp + 86400; // 24h validity
+
+      console.log('🔵 [DEBUG] QR params:', {
+        eventId: ticket.eventId,
+        attendee,
+        tierId: ticket.tierId || 0,
+        nonce,
+        timestamp,
+        deadline
+      });
 
       const domain = {
         name: 'QRVerificationSystem',
@@ -57,17 +67,22 @@ const TicketQR = ({ ticket }) => {
         eventId: ticket.eventId,
         attendee,
         tierId: ticket.tierId || 0,
-        nonce: (Number(nonce) + 1).toString(),
+        nonce,
         timestamp,
         deadline
       };
 
+      console.log('🔵 [DEBUG] Requesting signature...');
       const signature = await signer.signTypedData(domain, types, value);
+      console.log('✅ [DEBUG] Signature generated:', signature);
 
-      setQrData(JSON.stringify({ ...value, signature }));
+      const qrPayload = JSON.stringify({ ...value, signature });
+      console.log('✅ [DEBUG] QR payload:', qrPayload);
+      
+      setQrData(qrPayload);
       setLoading(false);
     } catch (err) {
-      console.error('QR generation failed:', err);
+      console.error('🔴 [DEBUG] QR generation failed:', err);
       setError(err.message);
       setLoading(false);
     }
@@ -86,12 +101,30 @@ const TicketQR = ({ ticket }) => {
     return (
       <div className="bg-red-900/20 p-6 rounded-xl text-center border border-red-500/30">
         <AlertCircle className="w-8 h-8 mx-auto mb-2 text-red-400" />
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-red-400 mb-2">
+          {error.includes('rejected') || error.includes('denied') 
+            ? 'Signature rejected. Please approve the wallet request to generate your QR code.'
+            : error}
+        </p>
         <button 
           onClick={generateQR}
-          className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm"
+          className="mt-3 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm transition-colors"
         >
-          Retry
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  if (!qrData) {
+    return (
+      <div className="bg-gray-800/50 p-6 rounded-xl text-center">
+        <p className="text-sm text-gray-400 mb-3">Generate your ticket QR code for entry</p>
+        <button 
+          onClick={generateQR}
+          className="px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition-colors"
+        >
+          Generate QR Code
         </button>
       </div>
     );

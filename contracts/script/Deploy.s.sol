@@ -45,23 +45,24 @@ contract DeployScript is Script {
         eventManager.grantRole(eventManager.EVENT_ADMIN(), address(factory));
         console.log("Granted EVENT_ADMIN role to factory");
 
-        // 6. Deploy QRVerificationSystem
+        // 6. Deploy MetadataRegistry
+        MetadataRegistry registry = new MetadataRegistry();
+        console.log("MetadataRegistry:", address(registry));
+
+        // 7. Deploy QRVerificationSystem
         QRVerificationSystem qrSystem = new QRVerificationSystem();
         qrSystem.setEventManager(address(eventManager));
+        qrSystem.setMetadataRegistry(address(registry));
         console.log("QRVerificationSystem:", address(qrSystem));
 
-        // 7. Deploy POAP
+        // 8. Deploy POAP
         POAP poap = new POAP();
         poap.grantRole(poap.VERIFIER_ROLE(), address(qrSystem));
         console.log("POAP:", address(poap));
 
-        // 8. Deploy EventBadge
+        // 9. Deploy EventBadge
         EventBadge badge = new EventBadge();
         console.log("EventBadge:", address(badge));
-
-        // 9. Deploy MetadataRegistry
-        MetadataRegistry registry = new MetadataRegistry();
-        console.log("MetadataRegistry:", address(registry));
 
         vm.stopBroadcast();
 

@@ -58,6 +58,7 @@ const Header = () => {
                 { name: 'Home', path: '/' },
                 { name: 'List', path: '/waiting' },
                 { name: 'Mint', path: '/mint' },
+                { name: 'Marketplace', path: '/resell' },
                 { name: 'Scanner', path: '/scanner' },
               ].map(({ name, path }) => (
                 <Link
@@ -124,6 +125,7 @@ const Header = () => {
                 { name: 'Home', path: '/' },
                 { name: 'List', path: '/waiting' },
                 { name: 'Mint', path: '/mint' },
+                { name: 'Marketplace', path: '/resell' },
                 { name: 'Scanner', path: '/scanner' },
               ].map(({ name, path }) => (
                 <Link

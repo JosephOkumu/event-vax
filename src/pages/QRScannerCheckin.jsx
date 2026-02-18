@@ -6,6 +6,7 @@ import { QRVerificationABI } from '../abi';
 import { CONTRACTS } from '../config/contracts';
 import { useWallet } from '../contexts/WalletContext';
 import { useSearchParams } from 'react-router-dom';
+import { API_BASE_URL } from '../config/api';
 
 const QRScannerCheckin = () => {
   const { validateNetwork } = useWallet();
@@ -15,46 +16,88 @@ const QRScannerCheckin = () => {
   const [message, setMessage] = useState('');
   const [attendeeInfo, setAttendeeInfo] = useState(null);
   const scannerRef = useRef(null);
+  const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
   useEffect(() => {
-    const qrScanner = new Html5QrcodeScanner(
-      "qr-reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      false
-    );
+    let qrScanner;
+    
+    try {
+      qrScanner = new Html5QrcodeScanner(
+        "qr-reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        false
+      );
+    } catch (err) {
+      console.error('Scanner init failed:', err);
+      setStatus('error');
+      setMessage('Camera access denied');
+      return;
+    }
 
     const onScanSuccess = async (decodedText) => {
-      try {
-        scannerRef.current?.pause?.();
-      } catch (e) {
-        console.log('Scanner pause skipped');
+      if (DEBUG_MODE) console.log('🔍 [1] QR scanned');
+      
+      if (status !== 'idle') {
+        if (DEBUG_MODE) console.log('⚠️ [BLOCKED] Status:', status);
+        return;
+      }
+      
+      if (scannerRef.current?.pause) {
+        try {
+          await scannerRef.current.pause(true);
+          if (DEBUG_MODE) console.log('⏸️ [2] Paused');
+        } catch (e) {
+          if (DEBUG_MODE) console.log('⚠️ [2] Pause failed');
+        }
       }
       
       setStatus('verifying');
       setMessage('Verifying ticket...');
       setAttendeeInfo(null);
+      if (DEBUG_MODE) console.log('🔄 [3] Status: verifying');
 
       try {
+        if (DEBUG_MODE) console.log('📋 [4] Parsing QR...');
         const qrData = JSON.parse(decodedText);
+        if (DEBUG_MODE) console.log('✅ [4] Parsed:', qrData);
         
         if (eventId && qrData.eventId !== parseInt(eventId)) {
+          if (DEBUG_MODE) console.log('❌ [5] Event mismatch');
           throw new Error('Wrong event ticket');
         }
+        if (DEBUG_MODE) console.log('✅ [5] Event OK');
         
-        if (!window.ethereum) throw new Error('Wallet not found');
+        if (!window.ethereum) {
+          if (DEBUG_MODE) console.log('❌ [6] No wallet');
+          throw new Error('Wallet not found');
+        }
+        if (DEBUG_MODE) console.log('✅ [6] Wallet found');
         
+        if (DEBUG_MODE) console.log('🌐 [7] Validating network...');
         await validateNetwork();
+        if (DEBUG_MODE) console.log('✅ [7] Network OK');
         
+        if (DEBUG_MODE) console.log('🔌 [8] Creating provider...');
         const provider = new ethers.BrowserProvider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        const signer = await provider.getSigner();
+        if (DEBUG_MODE) console.log('✅ [8] Provider created');
         
+        if (DEBUG_MODE) console.log('👛 [9] Requesting accounts (WALLET POPUP)...');
+        const accounts = await provider.send("eth_requestAccounts", []);
+        if (DEBUG_MODE) console.log('✅ [9] Accounts:', accounts);
+        
+        if (DEBUG_MODE) console.log('✍️ [10] Getting signer...');
+        const signer = await provider.getSigner();
+        if (DEBUG_MODE) console.log('✅ [10] Signer:', await signer.getAddress());
+        
+        if (DEBUG_MODE) console.log('📝 [11] Creating contract...');
         const contract = new ethers.Contract(
           CONTRACTS.QR_VERIFICATION,
           QRVerificationABI.abi,
           signer
         );
+        if (DEBUG_MODE) console.log('✅ [11] Contract:', CONTRACTS.QR_VERIFICATION);
 
+        if (DEBUG_MODE) console.log('🚀 [12] Calling verifyAndCheckIn...');
         const tx = await contract.verifyAndCheckIn(
           qrData.eventId,
           qrData.attendee,
@@ -64,9 +107,30 @@ const QRScannerCheckin = () => {
           qrData.deadline,
           qrData.signature
         );
+        if (DEBUG_MODE) console.log('✅ [12] TX sent:', tx.hash);
 
-        await tx.wait();
+        if (DEBUG_MODE) console.log('⏳ [13] Waiting confirmation...');
+        const receipt = await tx.wait();
+        if (DEBUG_MODE) console.log('✅ [13] Confirmed:', receipt.blockNumber);
+        
+        // Sync blockchain check-in to database
+        try {
+          if (DEBUG_MODE) console.log('💾 [14] Syncing DB...');
+          await fetch(`${API_BASE_URL}/api/verification/sync-checkin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              eventId: qrData.eventId,
+              attendee: qrData.attendee,
+              txHash: receipt.hash
+            })
+          });
+          if (DEBUG_MODE) console.log('✅ [14] DB synced');
+        } catch (syncErr) {
+          console.warn('⚠️ [14] Sync failed:', syncErr);
+        }
 
+        if (DEBUG_MODE) console.log('🎉 [15] SUCCESS');
         setStatus('success');
         setMessage('✓ Check-in Successful');
         setAttendeeInfo({
@@ -76,34 +140,58 @@ const QRScannerCheckin = () => {
         });
         
         setTimeout(() => {
+          if (DEBUG_MODE) console.log('🔄 [16] Resetting...');
           setStatus('idle');
           setAttendeeInfo(null);
-          try {
-            scannerRef.current?.resume?.();
-          } catch (e) {
-            console.log('Scanner resume skipped');
+          if (scannerRef.current?.resume) {
+            try {
+              scannerRef.current.resume();
+            } catch (e) {
+              // Scanner already scanning
+            }
           }
         }, 3000);
 
       } catch (error) {
+        console.error('❌ [ERROR] Failed');
+        if (DEBUG_MODE) {
+          console.error('❌ Type:', error.constructor.name);
+          console.error('❌ Message:', error.message);
+          console.error('❌ Code:', error.code);
+          console.error('❌ Full:', error);
+        }
+        
         setStatus('error');
-        setMessage(getErrorMessage(error));
+        const errMsg = getErrorMessage(error);
+        setMessage(errMsg);
+        if (DEBUG_MODE) console.log('🔴 Showing:', errMsg);
         
         setTimeout(() => {
+          if (DEBUG_MODE) console.log('🔄 [RESET] After error');
           setStatus('idle');
-          try {
-            scannerRef.current?.resume?.();
-          } catch (e) {
-            console.log('Scanner resume skipped');
+          if (scannerRef.current?.resume) {
+            try {
+              scannerRef.current.resume();
+            } catch (e) {
+              // Scanner already scanning
+            }
           }
         }, 3000);
       }
     };
 
-    qrScanner.render(onScanSuccess);
+    qrScanner.render(onScanSuccess).catch(err => {
+      console.error('Scanner render failed:', err);
+      setStatus('error');
+      setMessage('Camera not available');
+    });
     scannerRef.current = qrScanner;
 
-    return () => qrScanner.clear().catch(() => {});
+    return () => {
+      if (qrScanner) {
+        qrScanner.clear().catch(() => {});
+      }
+    };
   }, [eventId, validateNetwork]);
 
   const getErrorMessage = (error) => {
