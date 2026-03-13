@@ -30,6 +30,12 @@ dist-ssr
 server/.env
 contracts/.env
 
+# Databases
+*.db
+*.sqlite
+server/data/*.db
+server/data/*.sqlite
+
 # Amazon Q
 *.amazonq
 

@@ -3,6 +3,7 @@ import { Wallet, Ticket as TicketIcon, Calendar, MapPin, User, QrCode, Download,
 import { toPng } from 'html-to-image';
 import { saveAs } from 'file-saver';
 import EventverseTicket from '../components/EventverseTicket';
+import CommentRatingSection from '../components/CommentRatingSection';
 import { useWallet } from '../contexts/WalletContext';
 import { CONTRACTS, NETWORK } from '../config/contracts';
 import { useCurrency } from '../utils/currency.jsx';
@@ -32,6 +33,7 @@ const Ticket = () => {
   // Ticket States
   const [userTickets, setUserTickets] = useState([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [showCommentRatingModal, setShowCommentRatingModal] = useState(false);
   const ticketRef = useRef(null);
 
   const handleOpenPreview = () => {
@@ -144,11 +146,8 @@ const Ticket = () => {
   };
 
   const handleCommentOnEvent = () => {
-    // Navigate to mint page with fromTicket flag to show comments section
     if (selectedTicket) {
-      // Extract event ID from ticket data (you may need to adjust this based on your data structure)
-      const eventId = selectedTicket.eventId || selectedTicket.tokenId;
-      window.location.href = `/mint?eventId=${eventId}&fromTicket=true`;
+      setShowCommentRatingModal(true);
     }
   };
 
@@ -560,6 +559,34 @@ const Ticket = () => {
                 <Download className="w-4 h-4 mr-2" />
                 Confirm Download
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comment/Rating Modal */}
+      {showCommentRatingModal && selectedTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl max-w-2xl w-full p-6 relative shadow-2xl my-8">
+            <button
+              onClick={() => setShowCommentRatingModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center justify-center">
+              <MessageSquare className="w-6 h-6 mr-2 text-purple-400" />
+              Event Experience
+            </h3>
+
+            <div className="max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+              <CommentRatingSection
+                eventId={selectedTicket.eventId || selectedTicket.tokenId}
+                eventName={selectedTicket.eventName}
+                formOnly={true}
+                onSuccess={() => setShowCommentRatingModal(false)}
+              />
             </div>
           </div>
         </div>

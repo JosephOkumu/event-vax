@@ -61,11 +61,48 @@ const createTicketsTable = () => {
     console.log('✅ Tickets table created/verified');
 };
 
+// Create comments table
+const createCommentsTable = () => {
+    const sql = `
+    CREATE TABLE IF NOT EXISTS comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      user_name TEXT NOT NULL,
+      user_wallet TEXT,
+      comment TEXT NOT NULL,
+      verified INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id)
+    )
+  `;
+    db.exec(sql);
+    console.log('✅ Comments table created/verified');
+};
+
+// Create ratings table
+const createRatingsTable = () => {
+    const sql = `
+    CREATE TABLE IF NOT EXISTS ratings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id INTEGER NOT NULL,
+      user_name TEXT NOT NULL,
+      user_wallet TEXT,
+      rating INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id)
+    )
+  `;
+    db.exec(sql);
+    console.log('✅ Ratings table created/verified');
+};
+
 // Initialize database
 export const initDatabase = () => {
     try {
         createEventsTable();
         createTicketsTable();
+        createCommentsTable();
+        createRatingsTable();
         console.log('✅ Database initialized successfully');
     } catch (error) {
         console.error('❌ Database initialization error:', error);
@@ -163,6 +200,51 @@ export const deleteEvent = (id) => {
     const stmt = db.prepare(sql);
     const result = stmt.run(id);
     return result.changes;
+};
+
+// Insert comment
+export const insertComment = (commentData) => {
+    const sql = `
+      INSERT INTO comments (event_id, user_name, user_wallet, comment, verified)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+    const stmt = db.prepare(sql);
+    const result = stmt.run(
+        commentData.eventId,
+        commentData.userName || 'Anonymous',
+        commentData.userWallet || null,
+        commentData.comment,
+        commentData.verified ? 1 : 0
+    );
+    return result.lastInsertRowid;
+};
+
+// Get comments for an event
+export const getCommentsByEvent = (eventId) => {
+    const sql = 'SELECT * FROM comments WHERE event_id = ? ORDER BY created_at DESC';
+    return db.prepare(sql).all(eventId);
+};
+
+// Insert rating
+export const insertRating = (ratingData) => {
+    const sql = `
+      INSERT INTO ratings (event_id, user_name, user_wallet, rating)
+      VALUES (?, ?, ?, ?)
+    `;
+    const stmt = db.prepare(sql);
+    const result = stmt.run(
+        ratingData.eventId,
+        ratingData.userName || 'Anonymous',
+        ratingData.userWallet || null,
+        ratingData.rating
+    );
+    return result.lastInsertRowid;
+};
+
+// Get ratings for an event
+export const getRatingsByEvent = (eventId) => {
+    const sql = 'SELECT * FROM ratings WHERE event_id = ? ORDER BY created_at DESC';
+    return db.prepare(sql).all(eventId);
 };
 
 export default db;

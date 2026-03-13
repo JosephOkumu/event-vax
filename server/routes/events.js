@@ -1,5 +1,5 @@
 import express from 'express';
-import { insertEvent, getAllEvents, getEventById, updateEvent, deleteEvent, getEventsByCreator } from '../utils/database.js';
+import { insertEvent, getAllEvents, getEventById, updateEvent, deleteEvent, getEventsByCreator, insertComment, getCommentsByEvent, insertRating, getRatingsByEvent } from '../utils/database.js';
 
 const router = express.Router();
 
@@ -154,6 +154,87 @@ router.delete('/:id', async (req, res) => {
             error: 'Failed to delete event',
             details: error.message
         });
+    }
+});
+// Add comment to event
+router.post('/:id/comments', async (req, res) => {
+    try {
+        const { userName, userWallet, comment, verified } = req.body;
+        if (!comment) {
+            return res.status(400).json({ success: false, error: 'Comment is required' });
+        }
+
+        const commentId = insertComment({
+            eventId: req.params.id,
+            userName,
+            userWallet,
+            comment,
+            verified
+        });
+
+        res.status(201).json({ success: true, message: 'Comment added', commentId });
+    } catch (error) {
+        console.error('Error adding comment:', error);
+        res.status(500).json({ success: false, error: 'Failed to add comment', details: error.message });
+    }
+});
+
+// Get comments for event
+router.get('/:id/comments', async (req, res) => {
+    try {
+        const comments = getCommentsByEvent(req.params.id);
+        const formatted = comments.map(c => ({
+            id: c.id,
+            userName: c.user_name,
+            userWallet: c.user_wallet,
+            comment: c.comment,
+            createdAt: c.created_at,
+            verified: Boolean(c.verified)
+        }));
+        res.json({ success: true, data: formatted });
+    } catch (error) {
+        console.error('Error fetching comments:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch comments', details: error.message });
+    }
+});
+
+// Add rating to event
+router.post('/:id/ratings', async (req, res) => {
+    try {
+        const { userName, userWallet, rating } = req.body;
+        if (!rating || rating < 1 || rating > 5) {
+            return res.status(400).json({ success: false, error: 'Valid rating (1-5) is required' });
+        }
+
+        const ratingId = insertRating({
+            eventId: req.params.id,
+            userName,
+            userWallet,
+            rating
+        });
+
+        res.status(201).json({ success: true, message: 'Rating added', ratingId });
+    } catch (error) {
+        console.error('Error adding rating:', error);
+        res.status(500).json({ success: false, error: 'Failed to add rating', details: error.message });
+    }
+});
+
+// Get ratings for event
+router.get('/:id/ratings', async (req, res) => {
+    try {
+        const ratings = getRatingsByEvent(req.params.id);
+        const formatted = ratings.map(r => ({
+            id: r.id,
+            userName: r.user_name,
+            userWallet: r.user_wallet,
+            rating: r.rating,
+            createdAt: r.created_at
+        }));
+        res.json({ success: true, data: formatted });
+    } catch (error) {
+        console.error('Error fetching ratings:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch ratings', details: error.message });
     }
 });
 
