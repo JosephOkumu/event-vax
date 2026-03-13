@@ -75,6 +75,7 @@ export const WalletProvider = ({ children }) => {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         if (accounts.length > 0) {
           setWalletAddress(accounts[0]);
+          localStorage.setItem('walletAddress', accounts[0]);
           // Also get network info
           const provider = new ethers.BrowserProvider(window.ethereum);
           const network = await provider.getNetwork();
@@ -89,8 +90,10 @@ export const WalletProvider = ({ children }) => {
   const handleAccountsChanged = (accounts) => {
     if (accounts.length > 0) {
       setWalletAddress(accounts[0]);
+      localStorage.setItem('walletAddress', accounts[0]);
     } else {
       setWalletAddress(null);
+      localStorage.removeItem('walletAddress');
       setNetworkId(null);
     }
   };
@@ -102,6 +105,7 @@ export const WalletProvider = ({ children }) => {
 
   const handleDisconnect = () => {
     setWalletAddress(null);
+    localStorage.removeItem('walletAddress');
     setNetworkId(null);
   };
 
@@ -123,6 +127,7 @@ export const WalletProvider = ({ children }) => {
         const network = await provider.getNetwork();
 
         setWalletAddress(address);
+        localStorage.setItem('walletAddress', address);
         setNetworkId(Number(network.chainId));
 
         return address;
@@ -137,6 +142,7 @@ export const WalletProvider = ({ children }) => {
 
   const disconnectWallet = () => {
     setWalletAddress(null);
+    localStorage.removeItem('walletAddress');
     setNetworkId(null);
   };
 
