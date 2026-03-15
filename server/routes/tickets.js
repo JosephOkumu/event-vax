@@ -38,7 +38,7 @@ router.post('/', async (req, res) => {
         );
 
         console.log('✅ Ticket saved with ID:', result.lastInsertRowid);
-        
+
         // Send immediate response
         res.json({ success: true, ticketId: result.lastInsertRowid });
 
@@ -79,7 +79,7 @@ router.post('/', async (req, res) => {
 router.get('/wallet/:walletAddress', async (req, res) => {
     try {
         const { walletAddress } = req.params;
-        
+
         const tickets = db.prepare(`
             SELECT t.*, e.event_name, e.event_date, e.venue, e.flyer_image, e.description
             FROM tickets t
@@ -92,6 +92,83 @@ router.get('/wallet/:walletAddress', async (req, res) => {
     } catch (error) {
         console.error('❌ Error fetching tickets:', error);
         res.status(500).json({ success: false, error: 'Failed to fetch tickets' });
+    }
+});
+
+// Verify/Scan a Ticket QR Code
+router.post('/scan', async (req, res) => {
+    try {
+        const { contractAddress, tokenId, ownerAddress } = req.body;
+
+        if (!contractAddress || tokenId === undefined || !ownerAddress) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid QR code. Missing required data.'
+            });
+        }
+
+        console.log(`🔍 Scanning ticket: Token ID ${tokenId} at Contract ${contractAddress}`);
+
+        // 1. Look up the ticket in the database
+        // We match by the owner's address and the tier_id (which maps to the smart contract's token ID)
+        const ticket = db.prepare(`
+            SELECT t.*, e.event_name 
+            FROM tickets t
+            JOIN events e ON t.event_id = e.id
+            WHERE LOWER(t.wallet_address) = LOWER(?) 
+            AND t.tier_id = ?
+            AND t.qr_code LIKE ?
+        `).get(ownerAddress, tokenId, `%${contractAddress}%`);
+
+        // 2. Ticket not found in our system
+        if (!ticket) {
+            return res.status(404).json({
+                success: false,
+                isValid: false,
+                error: 'Ticket not found in the database. This QR code may be fake or not from this platform.'
+            });
+        }
+
+        // 3. Ticket is real, but has it been scanned before?
+        if (ticket.is_scanned === 1) {
+            return res.status(400).json({
+                success: false,
+                isValid: false,
+                error: 'TICKET ALREADY SCANNED. Entry denied.',
+                data: {
+                    eventName: ticket.event_name,
+                    tokenId: ticket.tier_id,
+                    owner: ticket.wallet_address
+                }
+            });
+        }
+
+        // 4. Ticket is real and untouched! Mark it as scanned.
+        db.prepare(`
+            UPDATE tickets 
+            SET is_scanned = 1 
+            WHERE id = ?
+        `).run(ticket.id);
+
+        console.log(`✅ Ticket #${ticket.id} successfully scanned and marked as used!`);
+
+        return res.json({
+            success: true,
+            isValid: true,
+            message: 'Ticket successfully verified! Entry granted.',
+            data: {
+                eventName: ticket.event_name,
+                tokenId: ticket.tier_id,
+                owner: ticket.wallet_address
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error scanning ticket:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error during verification'
+        });
     }
 });
 
