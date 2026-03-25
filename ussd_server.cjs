@@ -6,8 +6,8 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const mongoose = require('mongoose');
 const IntaSend = require('intasend-node');
-const connectDB = require('./sms_AT/backend/db');
-const { getEventsList, getEventMap } = require('./sms_AT/backend/eventService');
+const connectDB = require('./backend/db.cjs');
+const { getEventsList, getEventMap } = require('./backend/eventService.cjs');
 
 const app = express();
 
