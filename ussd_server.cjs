@@ -1,375 +1,278 @@
 require('dotenv').config();
 const express = require('express');
-const africastalking_api = require('africastalking');
-const axios = require('axios');
-const moment = require('moment');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const bodyParser = require('body-parser');
+const { ipKeyGenerator } = require('express-rate-limit');
 const mongoose = require('mongoose');
+const IntaSend = require('intasend-node');
+const connectDB = require('./sms_AT/backend/db');
+const { getEventsList, getEventMap } = require('./sms_AT/backend/eventService');
 
 const app = express();
-const port = process.env.PORT || 3000;
 
-// Trust the first proxy (needed for ngrok and rate limiting)
+// Trust proxy for rate limiting (ngrok)
 app.set('trust proxy', 1);
 
-// Verify required environment variables
-const requiredEnvVars = ['AFRICASTALKING_API_KEY', 'AFRICASTALKING_USERNAME', 'MONGODB_URI'];
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    console.error(`Missing required environment variable: ${envVar}`);
-    console.error('Make sure you have a .env file with these values before starting the server.');
-    process.exit(1);
-  }
-}
-
-// Initialize Africastalking client
-const africastalking = africastalking_api({
-  apiKey: process.env.AFRICASTALKING_API_KEY,
-  username: process.env.AFRICASTALKING_USERNAME
-});
-
-// Security middleware
 app.use(helmet());
 app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-// Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req, res) => ipKeyGenerator(req, res),
 });
 app.use(limiter);
 
-// Parse JSON only for application/json, and urlencoded for form data
-app.use(express.json({ limit: '1mb' }));
-app.use(bodyParser.urlencoded({ extended: false }));
-
-// Debug middleware: log headers and parsed body for every request
-app.use((req, res, next) => {
-  console.log('--- Incoming Request ---');
-  console.log('Headers:', req.headers);
-  console.log('Parsed body:', req.body);
-  next();
+const ticketSchema = new mongoose.Schema({
+  phoneNumber: String,
+  eventId: String,
+  eventName: String,
+  price: Number,
+  ticketCode: String,
+  status: { type: String, default: 'active' },
+  createdAt: { type: Date, default: Date.now },
 });
+const Ticket = mongoose.models.Ticket || mongoose.model('Ticket', ticketSchema);
 
-// --- MongoDB connection and transaction model ---
-async function connectDB() {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 10000
-    });
-    console.log('✅ MongoDB connected');
-  } catch (err) {
-    console.error('❌ MongoDB connection error:', err.message || err);
-    process.exit(1);
-  }
-}
-
-const transactionSchema = new mongoose.Schema(
-  {
-    merchantRequestId: String,
-    checkoutRequestId: String,
-    resultCode: Number,
-    resultDesc: String,
-
-    amount: Number,
-    mpesaReceiptNumber: String,
-    phoneNumber: String,
-    transactionDate: String, // keep format as Daraja returns (yyyymmddHHMMSS)
-
-    rawCallback: mongoose.Schema.Types.Mixed // full payload
-  },
-  { timestamps: true }
+const intaSend = new IntaSend(
+  process.env.INTASEND_PUBLIC_KEY,
+  process.env.INTASEND_PRIVATE_KEY,
+  process.env.INTASEND_ENV !== 'live' // true = sandbox
 );
 
-const Transaction = mongoose.model('Transaction', transactionSchema);
-
-// Helper: initiate STK Push using Intasend API
-async function initiateStkPush(phone, amount, { accountRef = 'BimaWater', transactionDesc = 'Water Bill Payment' } = {}) {
-  // Read Intasend credentials from env
-  const PUBLIC_KEY = process.env.INTASEND_PUBLIC_KEY || '';
-  const PRIVATE_KEY = process.env.INTASEND_PRIVATE_KEY || '';
-  const TEST_MODE = process.env.INTASEND_TEST_MODE === 'true';
-  const WEBHOOK_URL = process.env.INTASEND_WEBHOOK_URL || (process.env.NGROK_URL ? `${process.env.NGROK_URL}/daraja-callback` : 'https://your-callback-url.example.com/daraja-callback');
-
-  if (!PUBLIC_KEY || !PRIVATE_KEY) {
-    throw new Error('Missing INTASEND_PUBLIC_KEY or INTASEND_PRIVATE_KEY in environment variables');
-  }
-
-  // Normalize phone to 2547XXXXXXXX or 254 prefix expected by Intasend
-  let formattedPhone = phone.replace(/[^0-9]/g, '');
-  if (!formattedPhone.startsWith('254')) {
-    // assume user entered local number like 07XXXXXXXX
-    if (formattedPhone.startsWith('0')) {
-      formattedPhone = '254' + formattedPhone.slice(1);
-    }
-  }
-
-  // call Intasend STK Push
+async function initiateStkPush(phoneNumber, amount, metadata = {}) {
+  const collection = intaSend.collection();
   const payload = {
-    public_key: PUBLIC_KEY,
-    private_key: PRIVATE_KEY,
-    test_mode: TEST_MODE,
-    amount: amount,
-    phone_number: formattedPhone,
-    api_ref: accountRef + '-' + Date.now(),
-    webhook_url: WEBHOOK_URL
+    amount,
+    phone_number: phoneNumber,
+    narrative: metadata.transactionDesc || 'Event Ticket',
+    api_ref: metadata.accountRef || `ticket-${Date.now()}`,
+    currency: 'KES',
   };
 
-  const stkRes = await axios.post('https://sandbox.intasend.com/api/v1/payment/mpesa-stk-push/', payload, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${PRIVATE_KEY}`
-    }
-  });
-
-  return stkRes.data; // caller inspects invoice object
+  const res = await collection.mpesaStkPush(payload);
+  console.log('IntaSend STK response:', res);
+  return res;
 }
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
-
-// SMS endpoint (unchanged)
-app.post('/send-sms', async (req, res) => {
-  const { phoneNumber, message = 'Default message from Africastalking' } = req.body;
-
-  if (!phoneNumber) {
-    return res.status(400).json({ 
-      status: 'error',
-      message: 'Phone number is required' 
-    });
-  }
-
-  if (!/^\+?\d{10,15}$/.test(phoneNumber)) {
-    return res.status(400).json({ 
-      status: 'error',
-      message: 'Invalid phone number format. Please use international format (+254...)' 
-    });
-  }
-
-  try {
-    const result = await africastalking.SMS.send({
-      to: phoneNumber,
-      message: message,
-      from: 'Bima'
-    });
-
-    res.status(200).json({
-      status: 'success',
-      data: result
-    });
-
-  } catch (error) {
-    console.error('SMS sending error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to send SMS',
-      ...(process.env.NODE_ENV === 'development' && { error: error.message })
-    });
-  }
-});
-
-// USSD endpoint (keeps behaviour, but uses initiateStkPush helper and improved validation)
 app.post('/ussd', async (req, res) => {
-  const {
-    phoneNumber,
-    sessionId,
-    serviceCode,
-    text = ''
-  } = req.body;
+  try {
+    const { phoneNumber, text = '' } = req.body;
+    const steps = text ? text.split('*') : [];
 
-  if (!phoneNumber) {
-    return res.status(400).json({ 
-      status: 'error',
-      message: 'Phone number is required' 
-    });
-  }
+    let response = '';
 
-  let response = '';
-  const textArray = text.split('*');
-  const lastInput = textArray[textArray.length - 1];
-  let smsToSend = null;
-  let smsMessage = '';
+    if (!phoneNumber) {
+      response = 'END Missing phone number';
+    } else if (text === '') {
+      response = `CON Welcome to AVARA
+1. Buy Ticket
+2. My Tickets
+3. Wallet
+4. Events Near Me
+5. Support
+0. Exit`;
+    } else if (steps[0] === '1') {
+      if (steps.length === 1) {
+        const events = await getEventsList();
 
-  // USSD Water Management Menu
-  if (text === '') {
-    response = `CON Welcome to Bima.\n1. Meter Reading\n2. Pay Water Bill\n3. Report Issue\n0. Exit`;
-  } else if (text === '1') {
-    const usage = '12,500 Litres';
-    response = `END Your current water consumption is ${usage}.`;
-  } else if (text === '2') {
-    response = `CON Enter amount to pay:`;
-  } else if (text.startsWith('2*')) {
-    const amount = textArray[1];
-    if (!amount || isNaN(amount)) {
-      response = `END Invalid amount entered.`;
-    } else {
-      // Initiate STK Push
-      try {
-        const stkResp = await initiateStkPush(phoneNumber, amount, { accountRef: 'BimaWater', transactionDesc: 'Water Bill Payment' });
-
-        // Intasend returns invoice object on success
-        if (stkResp && stkResp.invoice) {
-          response = `END STK Push initiated. Complete payment on your phone.`;
+        if (events.length === 0) {
+          response = 'END No events available at the moment.';
         } else {
-          console.error('STK Push failed response:', stkResp);
-          response = `END Failed to initiate payment. Try again later.`;
+          let menu = 'CON Select Event:\n';
+          events.slice(0, 9).forEach((event, index) => {
+            menu += `${index + 1}. ${event.name} (${event.price} KES)\n`;
+          });
+          menu += '0. Back';
+          response = menu;
         }
-      } catch (err) {
-        console.error('STK Push error:', (err.response && err.response.data) || err.message || err);
-        response = `END Payment request failed. Please try again later.`;
+      } else if (steps.length === 2) {
+        if (steps[1] === '0') {
+          response = `CON Welcome to AVARA
+1. Buy Ticket
+2. My Tickets
+3. Wallet
+4. Events Near Me
+5. Support
+0. Exit`;
+        } else {
+          const eventMap = await getEventMap();
+          const event = eventMap[steps[1]];
+          response = event
+            ? `CON ${event.name}
+Price: ${event.price} KES
+1. Pay with M-Pesa
+0. Cancel`
+            : 'END Invalid option.';
+        }
+      } else if (steps.length === 3) {
+        if (steps[2] === '0') {
+          response = 'END Transaction cancelled.';
+        } else if (steps[2] === '1') {
+          const eventMap = await getEventMap();
+          const event = eventMap[steps[1]];
+          if (!event) {
+            response = 'END Invalid option.';
+          } else {
+            try {
+              await initiateStkPush(phoneNumber, event.price, {
+                accountRef: event.name,
+                transactionDesc: 'Event Ticket',
+              });
+
+              const ticketCode = Math.floor(10000 + Math.random() * 90000).toString();
+
+              await Ticket.create({
+                phoneNumber,
+                eventId: event.id,
+                eventName: event.name,
+                price: event.price,
+                ticketCode,
+              });
+
+              response = `END Payment initiated.
+Your Ticket Code: ${ticketCode}`;
+            } catch (err) {
+              console.error('Failed to process payment:', err);
+              response = 'END Payment failed. Try again.';
+            }
+          }
+        } else {
+          response = 'END Invalid option.';
+        }
+      } else {
+        response = 'END Invalid option.';
       }
-    }
-  } else if (text === '3') {
-    response = `CON Which issue are you reporting:\n1. Water outage\n2. Pipe leakage`;
-  } else if (text.startsWith('3*')) {
-    const issueOption = textArray[1];
-    let issueType = '';
-    if (issueOption === '1') {
-      issueType = 'Water outage';
-    } else if (issueOption === '2') {
-      issueType = 'Pipe leakage';
-    }
-    if (issueType) {
-      response = `END Thank you for reporting: ${issueType}. Our team will address it shortly.`;
-      smsToSend = phoneNumber; // Reporting user
-      smsMessage = `ALERT: Household ${phoneNumber} reported a '${issueType}'. Please investigate.`;
-    } else {
-      response = `END Invalid issue option selected.`;
-    }
-  } else if (text === '0') {
-    response = `END Thank you for using Bima.`;
-  } else {
-    response = `END Invalid option selected.`;
-  }
+    } else if (steps[0] === '2') {
+      const tickets = await Ticket.find({ phoneNumber }).lean();
 
-  // Send SMS alert for issue reporting
-  if (response.startsWith('END') && smsToSend && smsMessage) {
-    try {
-      await africastalking.SMS.send({
-        to: smsToSend,
-        message: smsMessage,
-        from: 'Bima'
-      });
-      console.log(`SMS sent to ${smsToSend}: ${smsMessage}`);
-    } catch (error) {
-      console.error('SMS sending error:', error);
-    }
-  }
-
-  // Send SMS with the last message shown to the user at the end of every USSD session
-  if (response.startsWith('END')) {
-    try {
-      await africastalking.SMS.send({
-        to: phoneNumber,
-        message: response.replace(/^END\s*/, ''), // Remove "END " prefix from message
-        from: 'Bima'
-      });
-      console.log(`USSD session end message sent to ${phoneNumber}: ${response}`);
-    } catch (error) {
-      console.error('SMS sending error for USSD session end message:', error);
-    }
-  }
-
-  res.set('Content-Type', 'text/plain');
-  res.send(response);
-});
-
-// Callback endpoint for STK Push (handles both Daraja and Intasend)
-app.post('/daraja-callback', async (req, res) => {
-  try {
-    let merchantRequestId, checkoutRequestId, resultCode, resultDesc, amount, mpesaReceiptNumber, phoneNumber, transactionDate, provider;
-
-    if (req.body.invoice) {
-      // Intasend callback
-      const body = req.body.invoice;
-      merchantRequestId = body.invoice_id;
-      checkoutRequestId = body.intasend_tracking_id;
-      resultCode = body.state === 'COMPLETE' ? 0 : (body.state === 'FAILED' ? 1 : 2);
-      resultDesc = body.failed_reason || 'Success';
-      amount = Number(body.value);
-      mpesaReceiptNumber = body.mpesa_reference;
-      phoneNumber = body.customer_phone_number;
-      transactionDate = body.updated_at;
-      provider = 'intasend';
-    } else {
-      // Daraja callback
-      const body = (req.body && req.body.Body && req.body.Body.stkCallback) ? req.body.Body.stkCallback : null;
-      if (!body) {
-        console.warn('Received callback with unexpected structure:', req.body);
-        return res.status(200).json({ status: 'ignored' });
+      if (tickets.length === 0) {
+        response = 'END You have no tickets.';
+      } else {
+        const list = tickets.map((t) => `${t.eventName} - ${t.ticketCode}`).join('\n');
+        response = `END Your Tickets:\n${list}`;
       }
+    } else if (steps[0] === '3') {
+      if (steps.length === 1) {
+        response = `CON Wallet
+1. Balance
+2. Deposit
+3. Withdraw
+0. Back`;
+      } else if (steps[1] === '0') {
+        response = `CON Welcome to AVARA
+1. Buy Ticket
+2. My Tickets
+3. Wallet
+4. Events Near Me
+5. Support
+0. Exit`;
+      } else if (steps[1] === '1') {
+        response = 'END Your balance is 0 KES';
+      } else if (steps[1] === '2') {
+        response = `END Send money to Paybill 412345
+Acc: Your Phone Number`;
+      } else if (steps[1] === '3') {
+        response = 'END Withdrawal sent to M-Pesa';
+      } else {
+        response = 'END Invalid option';
+      }
+    } else if (steps[0] === '4') {
+      if (steps.length === 1) {
+        const events = await getEventsList();
+        const venues = [...new Set(events.map(e => e.venue))].slice(0, 9);
 
-      merchantRequestId = body.MerchantRequestID;
-      checkoutRequestId = body.CheckoutRequestID;
-      resultCode = Number(body.ResultCode);
-      resultDesc = body.ResultDesc;
+        if (venues.length === 0) {
+          response = 'END No events available.';
+        } else {
+          let menu = 'CON Select Region:\n';
+          venues.forEach((venue, index) => {
+            menu += `${index + 1}. ${venue}\n`;
+          });
+          menu += '0. Back';
+          response = menu;
+        }
+      } else if (steps.length === 2) {
+        if (steps[1] === '0') {
+          response = `CON Welcome to AVARA
+1. Buy Ticket
+2. My Tickets
+3. Wallet
+4. Events Near Me
+5. Support
+0. Exit`;
+        } else {
+          const events = await getEventsList();
+          const venues = [...new Set(events.map(e => e.venue))];
+          const selectedVenueIndex = parseInt(steps[1]) - 1;
+          const selectedVenue = venues[selectedVenueIndex];
 
-      const itemsArray = (body.CallbackMetadata && body.CallbackMetadata.Item) ? body.CallbackMetadata.Item : [];
-      const items = itemsArray.reduce((acc, it) => {
-        if (it && it.Name) acc[it.Name] = it.Value;
-        return acc;
-      }, {});
-
-      amount = Number(items.Amount) || 0;
-      mpesaReceiptNumber = items.MpesaReceiptNumber || null;
-      phoneNumber = items.PhoneNumber || null;
-      transactionDate = items.TransactionDate || null;
-      provider = 'daraja';
+          if (!selectedVenue) {
+            response = 'END Invalid region.';
+          } else {
+            const venueEvents = events.filter(e => e.venue === selectedVenue);
+            const evts = venueEvents.slice(0, 10).map((e) => `${e.name} - ${e.price} KES`).join('\n');
+            response = `END Events in ${selectedVenue}:\n${evts}`;
+          }
+        }
+      } else {
+        response = 'END Invalid option.';
+      }
+    } else if (steps[0] === '5') {
+      if (steps.length === 1) {
+        response = `CON Support
+1. Request Call-Back
+2. Report Issue
+0. Back`;
+      } else if (steps[1] === '0') {
+        response = `CON Welcome to AVARA
+1. Buy Ticket
+2. My Tickets
+3. Wallet
+4. Events Near Me
+5. Support
+0. Exit`;
+      } else if (steps[1] === '1') {
+        response = 'END We will call you shortly.';
+      } else if (steps[1] === '2') {
+        response = 'END Issue reported. Thank you.';
+      } else {
+        response = 'END Invalid option.';
+      }
+    } else if (steps[0] === '0') {
+      response = 'END Thank you for using AVARA';
+    } else {
+      response = 'END Invalid option';
     }
 
-    const doc = await Transaction.create({
-      merchantRequestId,
-      checkoutRequestId,
-      resultCode,
-      resultDesc,
-      amount,
-      mpesaReceiptNumber,
-      phoneNumber,
-      transactionDate,
-      provider,
-      rawCallback: req.body
-    });
-
-    console.log('💾 Saved transaction:', doc._id.toString());
-
-    res.status(200).json({ status: 'success' });
+    res.set('Content-Type', 'text/plain');
+    res.send(response);
   } catch (err) {
-    console.error('Error handling callback:', err);
-    res.status(200).json({ status: 'error' });
+    console.error('USSD route error:', err);
+    res.set('Content-Type', 'text/plain');
+    res.send('END Something went wrong. Try again.');
   }
 });
 
-// Simple route to view recent transactions
-app.get('/transactions', async (req, res) => {
-  try {
-    const rows = await Transaction.find().sort({ createdAt: -1 }).limit(50);
-    res.json(rows);
-  } catch (err) {
-    console.error('Error fetching transactions:', err);
-    res.status(500).json({ status: 'error' });
-  }
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
-// Start server after DB connection
-connectDB().then(() => {
-  app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+const PORT = Number(process.env.PORT) || 3000;
+const MONGODB_URI = process.env.MONGODB_URI;
+
+(async () => {
+  await connectDB(MONGODB_URI);
+  app.listen(PORT, () => {
+    console.log(`✅ USSD Server ready on port ${PORT}`);
   });
-});
+})();
 
-// Error handling
 process.on('unhandledRejection', (err) => {
-  console.error('Unhandled rejection:', err);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
-  process.exit(1);
+  console.error('Unhandled promise rejection:', err);
 });
