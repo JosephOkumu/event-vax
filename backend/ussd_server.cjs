@@ -63,7 +63,7 @@ app.post('/ussd', async (req, res) => {
     if (!phoneNumber) {
       response = 'END Missing phone number';
     } else if (text === '') {
-      response = `CON Welcome to AVARA
+      response = `CON Welcome to EventVerse
 1. Buy Ticket
 2. My Tickets
 3. Wallet
@@ -86,7 +86,7 @@ app.post('/ussd', async (req, res) => {
         }
       } else if (steps.length === 2) {
         if (steps[1] === '0') {
-          response = `CON Welcome to AVARA
+          response = `CON Welcome to EventVerse
 1. Buy Ticket
 2. My Tickets
 3. Wallet
@@ -160,7 +160,7 @@ Your Ticket Code: ${ticketCode}`;
 3. Withdraw
 0. Back`;
       } else if (steps[1] === '0') {
-        response = `CON Welcome to AVARA
+        response = `CON Welcome to EventVerse
 1. Buy Ticket
 2. My Tickets
 3. Wallet
@@ -194,7 +194,7 @@ Acc: Your Phone Number`;
         }
       } else if (steps.length === 2) {
         if (steps[1] === '0') {
-          response = `CON Welcome to AVARA
+          response = `CON Welcome to EventVerse
 1. Buy Ticket
 2. My Tickets
 3. Wallet
@@ -225,7 +225,7 @@ Acc: Your Phone Number`;
 2. Report Issue
 0. Back`;
       } else if (steps[1] === '0') {
-        response = `CON Welcome to AVARA
+        response = `CON Welcome to EventVerse
 1. Buy Ticket
 2. My Tickets
 3. Wallet
@@ -240,7 +240,7 @@ Acc: Your Phone Number`;
         response = 'END Invalid option.';
       }
     } else if (steps[0] === '0') {
-      response = 'END Thank you for using AVARA';
+      response = 'END Thank you for using EventVerse';
     } else {
       response = 'END Invalid option';
     }
