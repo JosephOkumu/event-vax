@@ -13,7 +13,7 @@ Eventverse is a revolutionary blockchain-based ticketing platform engineered to 
 
 ### 🤖 AI Assistant
 
-- An intelligent chatbot designed to help users navigate the EventVax platform
+- An intelligent chatbot designed to help users navigate the EventVerse platform
 - Provides accurate, context-aware answers about ticket purchasing, wallet connections, event creation, and more
 - Offers step-by-step guidance for blockchain interactions and NFT ticket management
 - Features a beautiful floating UI that's accessible throughout the platform
@@ -75,7 +75,7 @@ Eventverse is a revolutionary blockchain-based ticketing platform engineered to 
 
 2. **Install Core Wallet:**
 
-   Core is the recommended wallet for interacting with Avalanche and the EventVax platform.
+   Core is the recommended wallet for interacting with Avalanche and the EventVerse platform.
    
    - **Download:** [https://core.app/](https://core.app/)
    - **Browser Extension:** Available for Chrome, Firefox, Brave, and Edge
@@ -141,18 +141,18 @@ Eventverse is a revolutionary blockchain-based ticketing platform engineered to 
 9. **Run the application locally:**
 
    ```bash
-   # First, install and run the backend server
-   cd server
+   # First, install and run the backend (API + USSD)
+   cd backend
    npm install
    npm run dev
    
    # In a new terminal, run the frontend
-   cd eventvax
+   cd frontend
    npm install
    npm run dev
    ```
 
-> 💡 Contract addresses are configured in `src/config/contracts.js`
+> 💡 Contract addresses are configured in `frontend/src/config/contracts.js`
 
 ## 👥 The Team
 
