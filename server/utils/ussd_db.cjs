@@ -2,7 +2,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 
 // Path to your existing SQLite database
-const dbPath = path.join(__dirname, '..', 'server', 'data', 'events.db');
+const dbPath = path.join(__dirname, '..', 'data', 'events.db');
 const db = new Database(dbPath);
 
 // Enable foreign keys

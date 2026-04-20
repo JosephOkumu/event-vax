@@ -9,8 +9,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "ussd": "node ussd_server.cjs",
-    "ussd:dev": "nodemon ussd_server.cjs"
+    "ussd": "node server/ussd_server.cjs",
+    "ussd:dev": "nodemon server/ussd_server.cjs"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.3.3",

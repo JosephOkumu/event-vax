@@ -7,8 +7,8 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const IntaSend = require('intasend-node');
 
 // SQLite Integration
-const db = require('./backend/sqlite_db.cjs');
-const { getEventsList, getEventMap } = require('./backend/eventService.cjs');
+const db = require('./utils/ussd_db.cjs');
+const { getEventsList, getEventMap } = require('./utils/ussd_eventService.cjs');
 
 const app = express();
 

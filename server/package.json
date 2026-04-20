@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "ussd": "node ussd_server.cjs",
+    "dev": "concurrently \"nodemon server.js\" \"nodemon ussd_server.cjs\""
   },
   "keywords": [
     "chatbot",
@@ -17,6 +18,7 @@
   "license": "MIT",
   "dependencies": {
     "better-sqlite3": "^11.8.1",
+    "concurrently": "^9.2.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "ethers": "^6.16.0",
