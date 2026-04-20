@@ -4,12 +4,16 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
-const mongoose = require('mongoose');
 const IntaSend = require('intasend-node');
-const connectDB = require('./backend/db.cjs');
+
+// SQLite Integration
+const db = require('./backend/sqlite_db.cjs');
 const { getEventsList, getEventMap } = require('./backend/eventService.cjs');
 
 const app = express();
+
+// Initialize SQLite tables
+db.initUssdTables();
 
 // Trust proxy for rate limiting (ngrok)
 app.set('trust proxy', 1);
@@ -27,17 +31,6 @@ const limiter = rateLimit({
   keyGenerator: (req, res) => ipKeyGenerator(req, res),
 });
 app.use(limiter);
-
-const ticketSchema = new mongoose.Schema({
-  phoneNumber: String,
-  eventId: String,
-  eventName: String,
-  price: Number,
-  ticketCode: String,
-  status: { type: String, default: 'active' },
-  createdAt: { type: Date, default: Date.now },
-});
-const Ticket = mongoose.models.Ticket || mongoose.model('Ticket', ticketSchema);
 
 const intaSend = new IntaSend(
   process.env.INTASEND_PUBLIC_KEY,
@@ -127,7 +120,8 @@ Price: ${event.price} KES
 
               const ticketCode = Math.floor(10000 + Math.random() * 90000).toString();
 
-              await Ticket.create({
+              // Storage in SQLite
+              db.createTicket({
                 phoneNumber,
                 eventId: event.id,
                 eventName: event.name,
@@ -149,12 +143,13 @@ Your Ticket Code: ${ticketCode}`;
         response = 'END Invalid option.';
       }
     } else if (steps[0] === '2') {
-      const tickets = await Ticket.find({ phoneNumber }).lean();
+      // Find in SQLite
+      const tickets = db.findTicketsByPhone(phoneNumber);
 
       if (tickets.length === 0) {
         response = 'END You have no tickets.';
       } else {
-        const list = tickets.map((t) => `${t.eventName} - ${t.ticketCode}`).join('\n');
+        const list = tickets.map((t) => `${t.event_name} - ${t.ticket_code}`).join('\n');
         response = `END Your Tickets:\n${list}`;
       }
     } else if (steps[0] === '3') {
@@ -259,19 +254,86 @@ Acc: Your Phone Number`;
   }
 });
 
+// Callback endpoint for STK Push (SQLite storage)
+app.post('/daraja-callback', async (req, res) => {
+  try {
+    let merchantRequestId, checkoutRequestId, resultCode, resultDesc, amount, mpesaReceiptNumber, phoneNumber, transactionDate, provider;
+
+    if (req.body.invoice) {
+      // Intasend callback
+      const body = req.body.invoice;
+      merchantRequestId = body.invoice_id;
+      checkoutRequestId = body.intasend_tracking_id;
+      resultCode = body.state === 'COMPLETE' ? 0 : (body.state === 'FAILED' ? 1 : 2);
+      resultDesc = body.failed_reason || 'Success';
+      amount = Number(body.value);
+      mpesaReceiptNumber = body.mpesa_reference;
+      phoneNumber = body.customer_phone_number;
+      transactionDate = body.updated_at;
+      provider = 'intasend';
+    } else {
+      const body = (req.body && req.body.Body && req.body.Body.stkCallback) ? req.body.Body.stkCallback : null;
+      if (body) {
+        merchantRequestId = body.MerchantRequestID;
+        checkoutRequestId = body.CheckoutRequestID;
+        resultCode = Number(body.ResultCode);
+        resultDesc = body.ResultDesc;
+
+        const itemsArray = (body.CallbackMetadata && body.CallbackMetadata.Item) ? body.CallbackMetadata.Item : [];
+        const items = itemsArray.reduce((acc, it) => {
+          if (it && it.Name) acc[it.Name] = it.Value;
+          return acc;
+        }, {});
+
+        amount = Number(items.Amount) || 0;
+        mpesaReceiptNumber = items.MpesaReceiptNumber || null;
+        phoneNumber = items.PhoneNumber || null;
+        transactionDate = items.TransactionDate || null;
+        provider = 'daraja';
+      }
+    }
+
+    db.createTransaction({
+      merchantRequestId,
+      checkoutRequestId,
+      resultCode,
+      resultDesc,
+      amount,
+      mpesaReceiptNumber,
+      phoneNumber,
+      transactionDate,
+      provider,
+      rawCallback: req.body
+    });
+
+    console.log('💾 Transaction saved to SQLite');
+
+    res.status(200).json({ status: 'success' });
+  } catch (err) {
+    console.error('Error handling callback:', err);
+    res.status(200).json({ status: 'error' });
+  }
+});
+
+app.get('/transactions', async (req, res) => {
+  try {
+    const rows = db.findLatestTransactions(50);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching transactions:', err);
+    res.status(500).json({ status: 'error' });
+  }
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
 const PORT = Number(process.env.PORT) || 3000;
-const MONGODB_URI = process.env.MONGODB_URI;
 
-(async () => {
-  await connectDB(MONGODB_URI);
-  app.listen(PORT, () => {
-    console.log(`✅ USSD Server ready on port ${PORT}`);
-  });
-})();
+app.listen(PORT, () => {
+  console.log(`✅ USSD Server (SQLite) ready on port ${PORT}`);
+});
 
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled promise rejection:', err);
