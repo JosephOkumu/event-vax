@@ -9,6 +9,11 @@ const IntaSend = require('intasend-node');
 // SQLite Integration
 const db = require('./utils/ussd_db.cjs');
 const { getEventsList, getEventMap } = require('./utils/ussd_eventService.cjs');
+const { getOrCreateWallet } = require('./utils/walletManager.cjs');
+const { recordPendingPayment, processCallback } = require('./utils/paymentService.cjs');
+// Phase 3 (minting) will be imported here once built
+let mintTicketOnChain = null;
+try { mintTicketOnChain = require('./utils/mintService.cjs').mintTicketOnChain; } catch (_) { }
 
 const app = express();
 
@@ -113,24 +118,45 @@ Price: ${event.price} KES
             response = 'END Invalid option.';
           } else {
             try {
-              await initiateStkPush(phoneNumber, event.price, {
+              // Get or create a custodial wallet for this phone number
+              const userWallet = getOrCreateWallet(phoneNumber);
+
+              // Initiate STK Push and capture the checkoutRequestId
+              const stkResponse = await initiateStkPush(phoneNumber, event.price, {
                 accountRef: event.name,
-                transactionDesc: 'Event Ticket',
+                transactionDesc: 'EventVerse Ticket - KES to AVAX',
               });
 
               const ticketCode = Math.floor(10000 + Math.random() * 90000).toString();
+              const checkoutId = stkResponse.id || stkResponse.CheckoutRequestID || `local-${Date.now()}`;
 
-              // Storage in SQLite
+              // Record the pending payment so the callback can trigger minting
+              recordPendingPayment({
+                checkoutRequestId: checkoutId,
+                merchantRequestId: stkResponse.invoice_id || stkResponse.MerchantRequestID || null,
+                phoneNumber,
+                ticketCode,
+                eventId: event.id,
+                eventName: event.name,
+                amountKes: event.price,
+                walletAddress: userWallet.address,
+              });
+
+              // Save the ticket (mint_status = 'pending' until callback confirms)
               db.createTicket({
                 phoneNumber,
                 eventId: event.id,
                 eventName: event.name,
                 price: event.price,
                 ticketCode,
+                walletAddress: userWallet.address,
+                mintStatus: 'pending',
               });
 
-              response = `END Payment initiated.
-Your Ticket Code: ${ticketCode}`;
+              response = `END M-Pesa prompt sent.
+Confirm payment on your phone.
+Ticket Code: ${ticketCode}
+(Valid once payment confirmed)`;
             } catch (err) {
               console.error('Failed to process payment:', err);
               response = 'END Payment failed. Try again.';
@@ -254,64 +280,83 @@ Acc: Your Phone Number`;
   }
 });
 
-// Callback endpoint for STK Push (SQLite storage)
+// Callback endpoint for STK Push (Phase 2: payment confirmation + Phase 3: mint trigger)
 app.post('/daraja-callback', async (req, res) => {
+  // Always respond 200 immediately to M-Pesa/IntaSend
+  res.status(200).json({ status: 'received' });
+
   try {
-    let merchantRequestId, checkoutRequestId, resultCode, resultDesc, amount, mpesaReceiptNumber, phoneNumber, transactionDate, provider;
+    const { success, pendingPayment, parsed } = processCallback(req.body);
 
-    if (req.body.invoice) {
-      // Intasend callback
-      const body = req.body.invoice;
-      merchantRequestId = body.invoice_id;
-      checkoutRequestId = body.intasend_tracking_id;
-      resultCode = body.state === 'COMPLETE' ? 0 : (body.state === 'FAILED' ? 1 : 2);
-      resultDesc = body.failed_reason || 'Success';
-      amount = Number(body.value);
-      mpesaReceiptNumber = body.mpesa_reference;
-      phoneNumber = body.customer_phone_number;
-      transactionDate = body.updated_at;
-      provider = 'intasend';
-    } else {
-      const body = (req.body && req.body.Body && req.body.Body.stkCallback) ? req.body.Body.stkCallback : null;
-      if (body) {
-        merchantRequestId = body.MerchantRequestID;
-        checkoutRequestId = body.CheckoutRequestID;
-        resultCode = Number(body.ResultCode);
-        resultDesc = body.ResultDesc;
-
-        const itemsArray = (body.CallbackMetadata && body.CallbackMetadata.Item) ? body.CallbackMetadata.Item : [];
-        const items = itemsArray.reduce((acc, it) => {
-          if (it && it.Name) acc[it.Name] = it.Value;
-          return acc;
-        }, {});
-
-        amount = Number(items.Amount) || 0;
-        mpesaReceiptNumber = items.MpesaReceiptNumber || null;
-        phoneNumber = items.PhoneNumber || null;
-        transactionDate = items.TransactionDate || null;
-        provider = 'daraja';
-      }
-    }
-
+    // Save transaction record regardless of outcome
     db.createTransaction({
-      merchantRequestId,
-      checkoutRequestId,
-      resultCode,
-      resultDesc,
-      amount,
-      mpesaReceiptNumber,
-      phoneNumber,
-      transactionDate,
-      provider,
-      rawCallback: req.body
+      merchantRequestId: parsed.merchantRequestId,
+      checkoutRequestId: parsed.checkoutRequestId,
+      resultCode: parsed.resultCode,
+      resultDesc: parsed.resultDesc,
+      amount: parsed.amount,
+      mpesaReceiptNumber: parsed.mpesaReceiptNumber,
+      phoneNumber: parsed.phoneNumber,
+      transactionDate: parsed.transactionDate,
+      provider: parsed.provider,
+      rawCallback: req.body,
     });
 
-    console.log('💾 Transaction saved to SQLite');
+    if (!success) {
+      console.log(`❌ Payment failed for checkout ${parsed.checkoutRequestId}: ${parsed.resultDesc}`);
+      // Update ticket mint_status to 'payment_failed'
+      if (pendingPayment) {
+        db.updateTicketMint(pendingPayment.ticket_code, {
+          tokenId: null,
+          txHash: null,
+          mintStatus: 'payment_failed',
+        });
+      }
+      return;
+    }
 
-    res.status(200).json({ status: 'success' });
+    console.log(`✅ Payment confirmed for ${parsed.phoneNumber} - KES ${parsed.amount}`);
+
+    if (!pendingPayment) {
+      console.warn('⚠️  No pending payment found for checkoutRequestId:', parsed.checkoutRequestId);
+      return;
+    }
+
+    // ── Phase 3: Trigger blockchain minting ──────────────────────────────
+    if (mintTicketOnChain) {
+      try {
+        console.log(`🔗 Triggering NFT mint for ticket ${pendingPayment.ticket_code}...`);
+        const mintResult = await mintTicketOnChain({
+          walletAddress: pendingPayment.wallet_address,
+          eventId: pendingPayment.event_id,
+          ticketCode: pendingPayment.ticket_code,
+          amountKes: pendingPayment.amount_kes,
+        });
+        db.updateTicketMint(pendingPayment.ticket_code, {
+          tokenId: mintResult.tokenId,
+          txHash: mintResult.txHash,
+          mintStatus: 'minted',
+        });
+        console.log(`🎟️  NFT minted: tokenId=${mintResult.tokenId} txHash=${mintResult.txHash}`);
+      } catch (mintErr) {
+        console.error('❌ Minting failed, will retry later:', mintErr.message);
+        db.updateTicketMint(pendingPayment.ticket_code, {
+          tokenId: null,
+          txHash: null,
+          mintStatus: 'mint_failed',
+        });
+      }
+    } else {
+      // mintService not yet loaded — mark as payment_confirmed, mint later
+      db.updateTicketMint(pendingPayment.ticket_code, {
+        tokenId: null,
+        txHash: null,
+        mintStatus: 'payment_confirmed',
+      });
+      console.log('ℹ️  mintService not loaded yet — ticket marked as payment_confirmed for later minting.');
+    }
   } catch (err) {
-    console.error('Error handling callback:', err);
-    res.status(200).json({ status: 'error' });
+    console.error('Error processing callback:', err);
   }
 });
 
