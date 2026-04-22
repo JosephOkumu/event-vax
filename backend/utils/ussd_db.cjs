@@ -19,6 +19,10 @@ function initUssdTables() {
             event_name TEXT NOT NULL,
             price REAL NOT NULL,
             ticket_code TEXT UNIQUE NOT NULL,
+            wallet_address TEXT,
+            token_id TEXT,
+            tx_hash TEXT,
+            mint_status TEXT DEFAULT 'pending',
             status TEXT DEFAULT 'active',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -42,6 +46,13 @@ function initUssdTables() {
         );
     `;
 
+    // Add pending_event_id column for mid-session state
+    try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN pending_event_id TEXT"); } catch (_) { }
+    try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN wallet_address TEXT"); } catch (_) { }
+    try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN token_id TEXT"); } catch (_) { }
+    try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN tx_hash TEXT"); } catch (_) { }
+    try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN mint_status TEXT DEFAULT 'pending'"); } catch (_) { }
+
     db.exec(createTicketsTable);
     db.exec(createTransactionsTable);
     console.log('✅ USSD SQLite tables initialized');
@@ -52,16 +63,24 @@ const dbHelpers = {
     // Tickets
     createTicket: (ticketData) => {
         const stmt = db.prepare(`
-            INSERT INTO ussd_tickets (phone_number, event_id, event_name, price, ticket_code)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO ussd_tickets (phone_number, event_id, event_name, price, ticket_code, wallet_address, mint_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
         return stmt.run(
             ticketData.phoneNumber,
             ticketData.eventId,
             ticketData.eventName,
             ticketData.price,
-            ticketData.ticketCode
+            ticketData.ticketCode,
+            ticketData.walletAddress || null,
+            ticketData.mintStatus || 'pending'
         );
+    },
+
+    updateTicketMint: (ticketCode, { tokenId, txHash, mintStatus }) => {
+        return db.prepare(`
+            UPDATE ussd_tickets SET token_id = ?, tx_hash = ?, mint_status = ? WHERE ticket_code = ?
+        `).run(tokenId, txHash, mintStatus, ticketCode);
     },
 
     findTicketsByPhone: (phoneNumber) => {
