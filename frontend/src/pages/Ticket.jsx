@@ -324,15 +324,43 @@ const Ticket = () => {
                         />
 
                         {ussdTickets.length > 0 && (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             <p className="text-xs text-gray-400">Found {ussdTickets.length} USSD ticket(s):</p>
                             {ussdTickets.map(t => (
-                              <div key={t.id} className="flex items-center justify-between p-2 bg-gray-800/60 rounded-lg text-xs">
-                                <span className="text-gray-200">{t.eventName}</span>
-                                <span className={`px-2 py-0.5 rounded-full ${t.mintStatus === 'minted' ? 'bg-green-900/50 text-green-400' :
-                                    t.mintStatus === 'payment_failed' ? 'bg-red-900/50 text-red-400' :
-                                      'bg-yellow-900/50 text-yellow-400'
-                                  }`}>{t.mintStatus}</span>
+                              <div key={t.id} className="p-3 bg-gray-800/60 rounded-lg text-xs space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-gray-200 font-medium">{t.eventName}</span>
+                                  <span className={`px-2 py-0.5 rounded-full ${t.mintStatus === 'minted' ? 'bg-green-900/50 text-green-400' :
+                                      t.mintStatus === 'payment_failed' ? 'bg-red-900/50 text-red-400' :
+                                        'bg-yellow-900/50 text-yellow-400'
+                                    }`}>{t.mintStatus}</span>
+                                </div>
+                                <div className="text-gray-500">Code: <span className="text-gray-300 font-mono">{t.ticketCode}</span></div>
+                                {/* Phase 6: Show QR for minted tickets */}
+                                {t.mintStatus === 'minted' && t.qrData && (
+                                  <div className="flex flex-col items-center pt-2 border-t border-gray-700">
+                                    <p className="text-gray-400 mb-2">🎟 Entry QR Code:</p>
+                                    <div className="bg-white p-2 rounded-lg inline-block">
+                                      <QRCodeSVG
+                                        value={JSON.stringify(t.qrData)}
+                                        size={120}
+                                        level="H"
+                                        includeMargin={false}
+                                      />
+                                    </div>
+                                    <p className="text-gray-500 mt-1 text-center">Show this at the gate</p>
+                                    {t.txHash && (
+                                      <a
+                                        href={`https://testnet.snowtrace.io/tx/${t.txHash}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="mt-1 text-purple-400 hover:text-purple-300 underline"
+                                      >
+                                        View on blockchain ↗
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

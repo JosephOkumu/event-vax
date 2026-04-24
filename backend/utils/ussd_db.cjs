@@ -52,6 +52,7 @@ function initUssdTables() {
     try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN token_id TEXT"); } catch (_) { }
     try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN tx_hash TEXT"); } catch (_) { }
     try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN mint_status TEXT DEFAULT 'pending'"); } catch (_) { }
+    try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN qr_data TEXT"); } catch (_) { }
 
     db.exec(createTicketsTable);
     db.exec(createTransactionsTable);
@@ -77,10 +78,18 @@ const dbHelpers = {
         );
     },
 
-    updateTicketMint: (ticketCode, { tokenId, txHash, mintStatus }) => {
+    updateTicketMint: (ticketCode, { tokenId, txHash, mintStatus, qrData }) => {
         return db.prepare(`
-            UPDATE ussd_tickets SET token_id = ?, tx_hash = ?, mint_status = ? WHERE ticket_code = ?
-        `).run(tokenId, txHash, mintStatus, ticketCode);
+            UPDATE ussd_tickets SET token_id = ?, tx_hash = ?, mint_status = ?, qr_data = ? WHERE ticket_code = ?
+        `).run(tokenId, txHash, mintStatus, qrData ? JSON.stringify(qrData) : null, ticketCode);
+    },
+
+    getTicketByCode: (ticketCode) => {
+        return db.prepare('SELECT * FROM ussd_tickets WHERE ticket_code = ?').get(ticketCode);
+    },
+
+    markUssdTicketScanned: (ticketCode) => {
+        return db.prepare('UPDATE ussd_tickets SET status = ? WHERE ticket_code = ?').run('used', ticketCode);
     },
 
     findTicketsByPhone: (phoneNumber) => {

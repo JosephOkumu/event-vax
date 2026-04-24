@@ -65,6 +65,7 @@ router.get('/phone/:phoneNumber', (req, res) => {
                 tokenId: t.token_id,
                 txHash: t.tx_hash,
                 createdAt: t.created_at,
+                qrData: t.qr_data ? JSON.parse(t.qr_data) : null,
             })),
         });
     } catch (err) {
@@ -204,6 +205,76 @@ router.post('/link/verify', async (req, res) => {
     } catch (err) {
         console.error('Error verifying OTP / linking wallet:', err);
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ── POST /scan ────────────────────────────────────────────────────────────────
+// Phase 6: Gate scanner verifies a USSD ticket QR code.
+router.post('/scan', async (req, res) => {
+    try {
+        const { ticketCode, walletAddress, tokenId, ticketAddress } = req.body;
+
+        if (!ticketCode) {
+            return res.status(400).json({ success: false, error: 'ticketCode is required' });
+        }
+
+        const ticket = ussdDb.getTicketByCode(ticketCode);
+        if (!ticket) {
+            return res.status(404).json({ success: false, isValid: false, error: 'Ticket not found.' });
+        }
+
+        if (ticket.status === 'used') {
+            return res.status(400).json({
+                success: false, isValid: false,
+                error: '⛔ TICKET ALREADY USED. Entry denied.',
+                data: { eventName: ticket.event_name, ticketCode: ticket.ticket_code },
+            });
+        }
+
+        if (ticket.mint_status !== 'minted') {
+            return res.status(400).json({
+                success: false, isValid: false,
+                error: `Ticket not yet minted (status: ${ticket.mint_status}).`,
+            });
+        }
+
+        // Optional on-chain ownership check
+        if (ticketAddress && walletAddress && tokenId != null) {
+            try {
+                const provider = new ethers.JsonRpcProvider(AVALANCHE_RPC);
+                const erc1155 = new ethers.Contract(ticketAddress, [
+                    'function balanceOf(address account, uint256 id) external view returns (uint256)',
+                ], provider);
+                const balance = await erc1155.balanceOf(walletAddress, BigInt(tokenId));
+                if (balance === 0n) {
+                    return res.status(400).json({
+                        success: false, isValid: false,
+                        error: 'On-chain ownership check failed: NFT not in wallet.',
+                    });
+                }
+            } catch (chainErr) {
+                console.warn('⚠️ On-chain check skipped:', chainErr.message);
+            }
+        }
+
+        // Mark as used
+        ussdDb.markUssdTicketScanned(ticketCode);
+        console.log(`✅ USSD Ticket ${ticketCode} scanned and marked used.`);
+
+        return res.json({
+            success: true, isValid: true,
+            message: '✅ Ticket valid! Entry granted.',
+            data: {
+                eventName: ticket.event_name,
+                ticketCode: ticket.ticket_code,
+                mintStatus: ticket.mint_status,
+                txHash: ticket.tx_hash,
+            },
+        });
+
+    } catch (err) {
+        console.error('Error scanning USSD ticket:', err);
+        res.status(500).json({ success: false, error: 'Internal error during scan' });
     }
 });
 

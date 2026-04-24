@@ -345,10 +345,24 @@ app.post('/daraja-callback', async (req, res) => {
           ticketCode: pendingPayment.ticket_code,
           amountKes: pendingPayment.amount_kes,
         });
+
+        // Phase 6: Generate QR data for gate verification
+        const qrData = {
+          type: 'ussd',
+          ticketCode: pendingPayment.ticket_code,
+          walletAddress: pendingPayment.wallet_address,
+          eventId: pendingPayment.event_id,
+          eventName: pendingPayment.event_name,
+          tokenId: mintResult.tokenId,
+          txHash: mintResult.txHash,
+          ticketAddress: mintResult.ticketAddress,
+        };
+
         db.updateTicketMint(pendingPayment.ticket_code, {
           tokenId: mintResult.tokenId,
           txHash: mintResult.txHash,
           mintStatus: 'minted',
+          qrData,
         });
         console.log(`🎟️  NFT minted: tokenId=${mintResult.tokenId} txHash=${mintResult.txHash}`);
 
