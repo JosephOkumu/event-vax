@@ -35,6 +35,16 @@ const Ticket = () => {
   const [userTickets, setUserTickets] = useState([]);
   const [showPreview, setShowPreview] = useState(false);
   const [showCommentRatingModal, setShowCommentRatingModal] = useState(false);
+  // USSD Ticket Claiming (Phase 5)
+  const [showUssdPanel, setShowUssdPanel] = useState(false);
+  const [ussdPhone, setUssdPhone] = useState('');
+  const [ussdTickets, setUssdTickets] = useState([]);
+  const [ussdOtp, setUssdOtp] = useState('');
+  const [ussdStep, setUssdStep] = useState('input');  // 'input' | 'otp' | 'done'
+  const [ussdLoading, setUssdLoading] = useState(false);
+  const [ussdMessage, setUssdMessage] = useState(null);
+  const [ussdError, setUssdError] = useState(null);
+
   const ticketRef = useRef(null);
 
   const handleOpenPreview = () => {
@@ -278,6 +288,165 @@ const Ticket = () => {
                     <div className="text-2xl sm:text-3xl font-bold text-purple-400">{userTickets.length}</div>
                   </div>
                 </div>
+              </div>
+
+              {/* ── Phase 5: Claim USSD Tickets Panel ───────────────── */}
+              <div className="mb-8">
+                <button
+                  onClick={() => setShowUssdPanel(p => !p)}
+                  className="w-full flex items-center justify-between p-4 rounded-xl bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-colors duration-200"
+                >
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">📲</span>
+                    <div className="text-left">
+                      <div className="font-semibold text-green-300">Claim USSD Tickets</div>
+                      <div className="text-xs text-gray-400">Bought via *384*95781# ? Transfer them to this wallet</div>
+                    </div>
+                  </div>
+                  <span className="text-gray-400">{showUssdPanel ? '▲' : '▼'}</span>
+                </button>
+
+                {showUssdPanel && (
+                  <div className="mt-3 p-5 bg-gray-900/70 rounded-xl border border-green-500/20 space-y-4">
+
+                    {ussdStep === 'input' && (
+                      <>
+                        <p className="text-sm text-gray-400">
+                          Enter the phone number you used to buy tickets via USSD.
+                          We'll send you an OTP to verify ownership.
+                        </p>
+                        <input
+                          type="tel"
+                          placeholder="+254722549387"
+                          value={ussdPhone}
+                          onChange={e => setUssdPhone(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-green-400"
+                        />
+
+                        {ussdTickets.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs text-gray-400">Found {ussdTickets.length} USSD ticket(s):</p>
+                            {ussdTickets.map(t => (
+                              <div key={t.id} className="flex items-center justify-between p-2 bg-gray-800/60 rounded-lg text-xs">
+                                <span className="text-gray-200">{t.eventName}</span>
+                                <span className={`px-2 py-0.5 rounded-full ${t.mintStatus === 'minted' ? 'bg-green-900/50 text-green-400' :
+                                    t.mintStatus === 'payment_failed' ? 'bg-red-900/50 text-red-400' :
+                                      'bg-yellow-900/50 text-yellow-400'
+                                  }`}>{t.mintStatus}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {ussdError && <p className="text-xs text-red-400">{ussdError}</p>}
+
+                        <div className="flex gap-3">
+                          <button
+                            onClick={async () => {
+                              setUssdError(null);
+                              setUssdLoading(true);
+                              try {
+                                const r = await fetch(`http://localhost:8080/api/ussd-tickets/phone/${encodeURIComponent(ussdPhone)}`);
+                                const d = await r.json();
+                                if (d.success) setUssdTickets(d.tickets);
+                                else setUssdError(d.error);
+                              } catch { setUssdError('Failed to fetch tickets.'); }
+                              setUssdLoading(false);
+                            }}
+                            disabled={!ussdPhone || ussdLoading}
+                            className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+                          >
+                            {ussdLoading ? 'Searching...' : 'Search'}
+                          </button>
+
+                          {ussdTickets.some(t => t.mintStatus === 'minted') && (
+                            <button
+                              onClick={async () => {
+                                setUssdError(null);
+                                setUssdLoading(true);
+                                try {
+                                  const r = await fetch('http://localhost:8080/api/ussd-tickets/link/request-otp', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ phoneNumber: ussdPhone, coreWalletAddress: walletAddress }),
+                                  });
+                                  const d = await r.json();
+                                  if (d.success) setUssdStep('otp');
+                                  else setUssdError(d.error);
+                                } catch { setUssdError('Failed to send OTP.'); }
+                                setUssdLoading(false);
+                              }}
+                              disabled={ussdLoading}
+                              className="flex-1 bg-green-700 hover:bg-green-600 text-white py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+                            >
+                              {ussdLoading ? 'Sending...' : 'Send OTP'}
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {ussdStep === 'otp' && (
+                      <>
+                        <p className="text-sm text-gray-400">
+                          Enter the 6-digit OTP sent to <span className="text-white font-semibold">{ussdPhone}</span>
+                        </p>
+                        <input
+                          type="text"
+                          placeholder="123456"
+                          maxLength={6}
+                          value={ussdOtp}
+                          onChange={e => setUssdOtp(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-500 text-sm text-center tracking-widest text-lg focus:outline-none focus:border-green-400"
+                        />
+
+                        {ussdError && <p className="text-xs text-red-400">{ussdError}</p>}
+
+                        <div className="flex gap-3">
+                          <button onClick={() => { setUssdStep('input'); setUssdError(null); }} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm">
+                            Back
+                          </button>
+                          <button
+                            onClick={async () => {
+                              setUssdError(null);
+                              setUssdLoading(true);
+                              try {
+                                const r = await fetch('http://localhost:8080/api/ussd-tickets/link/verify', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ phoneNumber: ussdPhone, otp: ussdOtp }),
+                                });
+                                const d = await r.json();
+                                if (d.success) { setUssdStep('done'); setUssdMessage(d.message); fetchUserTickets(); }
+                                else setUssdError(d.error);
+                              } catch { setUssdError('Verification failed.'); }
+                              setUssdLoading(false);
+                            }}
+                            disabled={ussdOtp.length !== 6 || ussdLoading}
+                            className="flex-1 bg-green-700 hover:bg-green-600 text-white py-2 rounded-lg text-sm disabled:opacity-50"
+                          >
+                            {ussdLoading ? 'Verifying...' : 'Verify & Claim'}
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {ussdStep === 'done' && (
+                      <div className="text-center py-4">
+                        <div className="text-4xl mb-3">🎟️</div>
+                        <p className="text-green-400 font-semibold">{ussdMessage}</p>
+                        <p className="text-xs text-gray-400 mt-2">Your tickets are now in your Core wallet and visible above.</p>
+                        <button
+                          onClick={() => { setShowUssdPanel(false); setUssdStep('input'); setUssdTickets([]); setUssdPhone(''); }}
+                          className="mt-4 px-6 py-2 bg-purple-700 hover:bg-purple-600 text-white rounded-lg text-sm"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    )}
+
+                  </div>
+                )}
               </div>
 
               {isLoading ? (
