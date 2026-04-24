@@ -14,7 +14,8 @@ const { recordPendingPayment, processCallback } = require('./utils/paymentServic
 // Phase 3 (minting) will be imported here once built
 let mintTicketOnChain = null;
 try { mintTicketOnChain = require('./utils/mintService.cjs').mintTicketOnChain; } catch (_) { }
-
+// Phase 4: SMS delivery
+const sms = require('./utils/smsService.cjs');
 const app = express();
 
 // Initialize SQLite tables
@@ -322,6 +323,18 @@ app.post('/daraja-callback', async (req, res) => {
       return;
     }
 
+    // Phase 4: Notify user immediately that payment is received
+    try {
+      await sms.sendPaymentConfirmationSMS({
+        phoneNumber: pendingPayment.phone_number,
+        eventName: pendingPayment.event_name,
+        ticketCode: pendingPayment.ticket_code,
+        amountKes: pendingPayment.amount_kes,
+      });
+    } catch (smsErr) {
+      console.error('⚠️ Payment confirmation SMS failed:', smsErr.message);
+    }
+
     // ── Phase 3: Trigger blockchain minting ──────────────────────────────
     if (mintTicketOnChain) {
       try {
@@ -338,6 +351,19 @@ app.post('/daraja-callback', async (req, res) => {
           mintStatus: 'minted',
         });
         console.log(`🎟️  NFT minted: tokenId=${mintResult.tokenId} txHash=${mintResult.txHash}`);
+
+        // Phase 4: Send ticket delivery SMS with tx proof
+        try {
+          await sms.sendTicketDeliveredSMS({
+            phoneNumber: pendingPayment.phone_number,
+            eventName: pendingPayment.event_name,
+            ticketCode: pendingPayment.ticket_code,
+            txHash: mintResult.txHash,
+            walletAddress: pendingPayment.wallet_address,
+          });
+        } catch (smsErr) {
+          console.error('⚠️ Ticket delivery SMS failed:', smsErr.message);
+        }
       } catch (mintErr) {
         console.error('❌ Minting failed, will retry later:', mintErr.message);
         db.updateTicketMint(pendingPayment.ticket_code, {
@@ -345,6 +371,17 @@ app.post('/daraja-callback', async (req, res) => {
           txHash: null,
           mintStatus: 'mint_failed',
         });
+
+        // Phase 4: Notify user of delay
+        try {
+          await sms.sendMintFailureSMS({
+            phoneNumber: pendingPayment.phone_number,
+            eventName: pendingPayment.event_name,
+            ticketCode: pendingPayment.ticket_code,
+          });
+        } catch (smsErr) {
+          console.error('⚠️ Mint failure SMS failed:', smsErr.message);
+        }
       }
     } else {
       // mintService not yet loaded — mark as payment_confirmed, mint later
