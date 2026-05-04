@@ -46,18 +46,29 @@ const intaSend = new IntaSend(
 
 async function initiateStkPush(phoneNumber, amount, metadata = {}) {
   const collection = intaSend.collection();
+
+  // IntaSend requires phone in format 254XXXXXXXXX (no leading +)
+  const sanitizedPhone = phoneNumber.replace(/^\+/, '');
+
+  // M-Pesa minimum is 1 KES; round up any sub-1 amounts (e.g. 0.12 KES → 1 KES)
+  const safeAmount = Math.max(1, Math.ceil(amount));
+
   const payload = {
-    amount,
-    phone_number: phoneNumber,
-    narrative: metadata.transactionDesc || 'Event Ticket',
+    phone_number: sanitizedPhone,
+    name: 'EventVerse User',
+    email: `${sanitizedPhone}@ussd.eventvax.app`,
+    amount: safeAmount,
     api_ref: metadata.accountRef || `ticket-${Date.now()}`,
+    narrative: metadata.transactionDesc || 'Event Ticket',
     currency: 'KES',
   };
 
+  console.log('IntaSend STK payload:', JSON.stringify(payload));
   const res = await collection.mpesaStkPush(payload);
   console.log('IntaSend STK response:', res);
   return res;
 }
+
 
 app.post('/ussd', async (req, res) => {
   try {
