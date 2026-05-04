@@ -425,7 +425,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.USSD_PORT) || 3000;
 
 app.listen(PORT, () => {
   console.log(`✅ USSD Server (SQLite) ready on port ${PORT}`);
