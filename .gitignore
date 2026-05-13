@@ -27,14 +27,14 @@ dist-ssr
 .env
 .env.local
 .env.*.local
-server/.env
+backend/.env
 contracts/.env
 
 # Databases
 *.db
 *.sqlite
-server/data/*.db
-server/data/*.sqlite
+backend/data/*.db
+backend/data/*.sqlite
 
 # Amazon Q
 *.amazonq

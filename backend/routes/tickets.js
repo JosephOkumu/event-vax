@@ -1,6 +1,6 @@
 import express from 'express';
 import { ethers } from "ethers";
-import { TicketNFTABI } from "../../src/abi/index.js";
+import { TicketNFTABI } from "../../frontend/src/abi/index.js";
 import db from '../utils/database.js';
 import dotenv from 'dotenv';
 

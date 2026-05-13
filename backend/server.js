@@ -7,6 +7,7 @@ import chatbotRouter from './routes/chatbot.js';
 import eventsRouter from './routes/events.js';
 import ticketsRouter from './routes/tickets.js';
 import metadataRouter from './routes/metadata.js';
+import ussdWalletRouter from './routes/ussdWallet.js';
 import { initDatabase } from './utils/database.js';
 import { syncEventsFromBlockchain } from './utils/snowtraceSync.js';
 
@@ -40,6 +41,7 @@ app.use('/api/chatbot', chatbotRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/tickets', ticketsRouter);
 app.use('/api/metadata', metadataRouter);
+app.use('/api/ussd-tickets', ussdWalletRouter);
 
 // Basic health check endpoint
 app.get('/health', (req, res) => {
