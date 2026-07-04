@@ -145,6 +145,9 @@ Eventverse is a revolutionary blockchain-based ticketing platform engineered to 
    cd backend
    npm install
    npm run dev
+
+   # Or run the USSD server directly from the repo root
+   node ussd_server.cjs
    
    # In a new terminal, run the frontend
    cd frontend

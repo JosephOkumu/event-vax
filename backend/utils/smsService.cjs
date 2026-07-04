@@ -60,10 +60,10 @@ async function sendSMS(to, message) {
  */
 async function sendPaymentConfirmationSMS({ phoneNumber, eventName, ticketCode, amountKes }) {
     const message =
-        `EventVerse: Payment of KES ${amountKes} received!\n` +
-        `Event: ${eventName}\n` +
-        `Ticket Code: ${ticketCode}\n` +
-        `Your NFT ticket is being minted on Avalanche. You will receive another SMS shortly.`;
+        `Payment Confirmation:\n` +
+        `KES ${amountKes} received for ${eventName}.\n` +
+        `Reference Code: ${ticketCode}\n` +
+        `Your digital ticket is currently being generated. You will receive a final confirmation shortly.`;
 
     return sendSMS(phoneNumber, message);
 }
@@ -84,11 +84,11 @@ async function sendTicketDeliveredSMS({ phoneNumber, eventName, ticketCode, txHa
     const shortTx = `${txHash.slice(0, 8)}...${txHash.slice(-6)}`;
 
     const message =
-        `🎟 EventVerse Ticket Confirmed!\n` +
+        `Ticket Issued Successfully.\n` +
         `Event: ${eventName}\n` +
-        `Code: ${ticketCode}\n` +
-        `Blockchain proof: ${shortTx}\n` +
-        `View: ${explorerUrl}`;
+        `Ticket Code: ${ticketCode}\n` +
+        `On-chain Verification: ${shortTx}\n` +
+        `Link: ${explorerUrl}`;
 
     return sendSMS(phoneNumber, message);
 }

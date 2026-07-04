@@ -1,0 +1,1 @@
+require('./backend/ussd_server.cjs');
