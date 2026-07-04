@@ -14,19 +14,26 @@
 const AfricasTalking = require('africastalking');
 
 let at = null;
+let db = null;
 
 function getATClient() {
     if (at) return at;
 
-    const username = process.env.AFRICASTALKING_USERNAME;
-    const apiKey = process.env.AFRICASTALKING_API_KEY;
+    // Default to sandbox username if not provided (sandbox username is always 'sandbox')
+    const username = process.env.AFRICASTALKING_USERNAME || 'sandbox';
+    const apiKey = process.env.AFRICASTALKING_API_KEY || 'atsk_24e20cb8af81e8e18cfe5a0e591adade81f6f07c703748218961862b9ba6395a7ff83ec8';
 
-    if (!username || !apiKey) {
-        throw new Error('AFRICASTALKING_USERNAME or AFRICASTALKING_API_KEY not set in .env');
+    if (!apiKey) {
+        throw new Error('AFRICASTALKING_API_KEY not set in .env');
     }
 
     at = AfricasTalking({ username, apiKey });
     return at;
+}
+
+// Initialize reference to database for logging
+function setDatabase(dbInstance) {
+    db = dbInstance;
 }
 
 /**
@@ -45,6 +52,48 @@ async function sendSMS(to, message) {
     });
 
     console.log('📩 SMS sent:', JSON.stringify(result, null, 2));
+    return result;
+}
+
+/**
+ * Send SMS and log to database for USSD.
+ * Handles logging even if SMS sending fails.
+ * @param {object} params
+ * @param {string} params.phoneNumber - Recipient phone number
+ * @param {string} params.message - SMS message content
+ * @param {string} params.messageType - Type of message (payment, ticket, error, etc.)
+ * @param {string} params.ticketCode - Optional ticket code reference
+ * @param {string} params.eventId - Optional event ID reference
+ */
+async function sendUssdSms({ phoneNumber, message, messageType = 'general', ticketCode = null, eventId = null }) {
+    let result = null;
+    let smsStatus = 'sent';
+
+    // Try to send the SMS
+    try {
+        result = await sendSMS(phoneNumber, message);
+        smsStatus = result.success ? 'sent' : 'failed';
+    } catch (err) {
+        console.error(`⚠️ SMS send failed for ${phoneNumber}:`, err.message);
+        smsStatus = 'failed';
+    }
+
+    // Always log to database
+    try {
+        if (db && db.logSmsMessage) {
+            db.logSmsMessage({
+                phoneNumber,
+                messageType,
+                messageContent: message,
+                status: smsStatus,
+                ticketCode,
+                eventId,
+            });
+        }
+    } catch (dbErr) {
+        console.error('⚠️ Failed to log SMS to database:', dbErr.message);
+    }
+
     return result;
 }
 
@@ -127,6 +176,8 @@ async function sendOTPSMS(phoneNumber, otp) {
 
 module.exports = {
     sendSMS,
+    sendUssdSms,
+    setDatabase,
     sendPaymentConfirmationSMS,
     sendTicketDeliveredSMS,
     sendMintFailureSMS,

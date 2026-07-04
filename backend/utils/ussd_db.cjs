@@ -46,6 +46,20 @@ function initUssdTables() {
         );
     `;
 
+    // SMS Messages Tracking Table
+    const createSmsTable = `
+        CREATE TABLE IF NOT EXISTS ussd_sms_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phone_number TEXT NOT NULL,
+            message_type TEXT,
+            message_content TEXT NOT NULL,
+            status TEXT DEFAULT 'sent',
+            ticket_code TEXT,
+            event_id TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `;
+
     // Add pending_event_id column for mid-session state
     try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN pending_event_id TEXT"); } catch (_) { }
     try { db.exec("ALTER TABLE ussd_tickets ADD COLUMN wallet_address TEXT"); } catch (_) { }
@@ -56,6 +70,7 @@ function initUssdTables() {
 
     db.exec(createTicketsTable);
     db.exec(createTransactionsTable);
+    db.exec(createSmsTable);
     console.log('✅ USSD SQLite tables initialized');
 }
 
@@ -121,6 +136,26 @@ const dbHelpers = {
 
     findLatestTransactions: (limit = 50) => {
         return db.prepare('SELECT * FROM ussd_transactions ORDER BY created_at DESC LIMIT ?').all(limit);
+    },
+
+    // SMS Messages
+    logSmsMessage: (smsData) => {
+        const stmt = db.prepare(`
+            INSERT INTO ussd_sms_messages (phone_number, message_type, message_content, status, ticket_code, event_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        return stmt.run(
+            smsData.phoneNumber,
+            smsData.messageType || 'general',
+            smsData.messageContent,
+            smsData.status || 'sent',
+            smsData.ticketCode || null,
+            smsData.eventId || null
+        );
+    },
+
+    getSmsHistory: (phoneNumber, limit = 50) => {
+        return db.prepare('SELECT * FROM ussd_sms_messages WHERE phone_number = ? ORDER BY created_at DESC LIMIT ?').all(phoneNumber, limit);
     }
 };
 

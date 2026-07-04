@@ -21,6 +21,9 @@ const app = express();
 // Initialize SQLite tables
 db.initUssdTables();
 
+// Initialize SMS with database logging
+sms.setDatabase(db);
+
 // Trust proxy for rate limiting (ngrok)
 app.set('trust proxy', 1);
 
@@ -79,6 +82,7 @@ app.post('/ussd', async (req, res) => {
 
     if (!phoneNumber) {
       response = 'END Missing phone number';
+      // Can't send SMS because phone number is missing
     } else if (text === '') {
       response = `CON Welcome to EventVerse
 1. Buy Ticket
@@ -93,6 +97,12 @@ app.post('/ussd', async (req, res) => {
 
         if (events.length === 0) {
           response = 'END No events available at the moment.';
+          // Send SMS notification (non-blocking)
+          sms.sendUssdSms({
+            phoneNumber,
+            message: 'EventVerse: No events are currently available. Please try again later.',
+            messageType: 'notification',
+          }).catch(err => console.error('SMS send error:', err && err.message || err));
         } else {
           let menu = 'CON Select Event:\n';
           events.slice(0, 9).forEach((event, index) => {
@@ -119,15 +129,34 @@ Price: ${event.price} KES
 1. Pay with M-Pesa
 0. Cancel`
             : 'END Invalid option.';
+          // Send SMS for invalid option
+          if (!event) {
+            sms.sendUssdSms({
+              phoneNumber,
+              message: 'EventVerse: Invalid event selection. Please try again.',
+              messageType: 'error',
+            }).catch(err => console.error('SMS send error:', err && err.message || err));
+          }
         }
       } else if (steps.length === 3) {
         if (steps[2] === '0') {
           response = 'END Transaction cancelled.';
+          // Send SMS for cancelled transaction (non-blocking)
+          sms.sendUssdSms({
+            phoneNumber,
+            message: 'EventVerse: Your ticket purchase has been cancelled.',
+            messageType: 'notification',
+          }).catch(err => console.error('SMS send error:', err && err.message || err));
         } else if (steps[2] === '1') {
           const eventMap = await getEventMap();
           const event = eventMap[steps[1]];
-          if (!event) {
+            if (!event) {
             response = 'END Invalid option.';
+            sms.sendUssdSms({
+              phoneNumber,
+              message: 'EventVerse: Invalid event selection. Please try again.',
+              messageType: 'error',
+            }).catch(err => console.error('SMS send error:', err && err.message || err));
           } else {
             try {
               // Get or create a custodial wallet for this phone number
@@ -169,13 +198,34 @@ Price: ${event.price} KES
 Confirm payment on your phone.
 Ticket Code: ${ticketCode}
 (Valid once payment confirmed)`;
+
+              // Send SMS with payment details (non-blocking)
+              sms.sendUssdSms({
+                phoneNumber,
+                message: `EventVerse: M-Pesa payment prompt sent. Amount: KES ${event.price}. Event: ${event.name}. Ticket Code: ${ticketCode}. Confirm payment on your phone.`,
+                messageType: 'payment',
+                ticketCode,
+                eventId: event.id,
+              }).catch(err => console.error('SMS send error:', err && err.message || err));
             } catch (err) {
               console.error('Failed to process payment:', err);
               response = 'END Payment failed. Try again.';
+              // Send SMS for payment error (non-blocking)
+              sms.sendUssdSms({
+                phoneNumber,
+                message: 'EventVerse: Payment initiation failed. Please try again or contact support.',
+                messageType: 'error',
+              }).catch(err => console.error('SMS send error:', err && err.message || err));
             }
           }
         } else {
           response = 'END Invalid option.';
+          // Send SMS for invalid option (non-blocking)
+          sms.sendUssdSms({
+            phoneNumber,
+            message: 'EventVerse: Invalid selection. Please try again.',
+            messageType: 'error',
+          }).catch(err => console.error('SMS send error:', err && err.message || err));
         }
       } else {
         response = 'END Invalid option.';
@@ -186,9 +236,21 @@ Ticket Code: ${ticketCode}
 
       if (tickets.length === 0) {
         response = 'END You have no tickets.';
+        // Send SMS notification (non-blocking)
+        sms.sendUssdSms({
+          phoneNumber,
+          message: 'EventVerse: You currently have no tickets. Visit our app or dial *300*222*2# to buy tickets.',
+          messageType: 'notification',
+        }).catch(err => console.error('SMS send error:', err && err.message || err));
       } else {
         const list = tickets.map((t) => `${t.event_name} - ${t.ticket_code}`).join('\n');
         response = `END Your Tickets:\n${list}`;
+        // Send SMS with ticket list (non-blocking)
+        sms.sendUssdSms({
+          phoneNumber,
+          message: `EventVerse: You have ${tickets.length} ticket(s). ${list.replace(/\n/g, ' | ')}`,
+          messageType: 'ticket_list',
+        }).catch(err => console.error('SMS send error:', err && err.message || err));
       }
     } else if (steps[0] === '3') {
       if (steps.length === 1) {
@@ -207,13 +269,37 @@ Ticket Code: ${ticketCode}
 0. Exit`;
       } else if (steps[1] === '1') {
         response = 'END Your balance is 0 KES';
+        // Send SMS wallet balance (non-blocking)
+        sms.sendUssdSms({
+          phoneNumber,
+          message: 'EventVerse: Your wallet balance is KES 0.00. Deposit to start buying tickets.',
+          messageType: 'wallet',
+        }).catch(err => console.error('SMS send error:', err && err.message || err));
       } else if (steps[1] === '2') {
         response = `END Send money to Paybill 412345
 Acc: Your Phone Number`;
+        // Send SMS deposit instructions (non-blocking)
+        sms.sendUssdSms({
+          phoneNumber,
+          message: 'EventVerse: To deposit, send money via M-Pesa to Paybill 412345 with account ' + phoneNumber,
+          messageType: 'wallet',
+        }).catch(err => console.error('SMS send error:', err && err.message || err));
       } else if (steps[1] === '3') {
         response = 'END Withdrawal sent to M-Pesa';
+        // Send SMS withdrawal confirmation (non-blocking)
+        sms.sendUssdSms({
+          phoneNumber,
+          message: 'EventVerse: Your wallet withdrawal is being processed. You will receive funds via M-Pesa shortly.',
+          messageType: 'wallet',
+        }).catch(err => console.error('SMS send error:', err && err.message || err));
       } else {
         response = 'END Invalid option';
+        // Send SMS for invalid option (non-blocking)
+        sms.sendUssdSms({
+          phoneNumber,
+          message: 'EventVerse: Invalid wallet option. Please try again.',
+          messageType: 'error',
+        }).catch(err => console.error('SMS send error:', err && err.message || err));
       }
     } else if (steps[0] === '4') {
       if (steps.length === 1) {
@@ -222,6 +308,12 @@ Acc: Your Phone Number`;
 
         if (venues.length === 0) {
           response = 'END No events available.';
+          // Send SMS notification (non-blocking)
+          sms.sendUssdSms({
+            phoneNumber,
+            message: 'EventVerse: No events are currently available in your region. Please check back later.',
+            messageType: 'notification',
+          }).catch(err => console.error('SMS send error:', err && err.message || err));
         } else {
           let menu = 'CON Select Region:\n';
           venues.forEach((venue, index) => {
@@ -247,14 +339,32 @@ Acc: Your Phone Number`;
 
           if (!selectedVenue) {
             response = 'END Invalid region.';
+            // Send SMS for invalid region (non-blocking)
+            sms.sendUssdSms({
+              phoneNumber,
+              message: 'EventVerse: Invalid region selection. Please try again.',
+              messageType: 'error',
+            }).catch(err => console.error('SMS send error:', err && err.message || err));
           } else {
             const venueEvents = events.filter(e => e.venue === selectedVenue);
             const evts = venueEvents.slice(0, 10).map((e) => `${e.name} - ${e.price} KES`).join('\n');
             response = `END Events in ${selectedVenue}:\n${evts}`;
+            // Send SMS with event list for venue (non-blocking)
+            sms.sendUssdSms({
+              phoneNumber,
+              message: `EventVerse: Events in ${selectedVenue}: ${evts.replace(/\n/g, ' | ')}`,
+              messageType: 'event_list',
+            }).catch(err => console.error('SMS send error:', err && err.message || err));
           }
         }
       } else {
         response = 'END Invalid option.';
+          // Send SMS for invalid option (non-blocking)
+          sms.sendUssdSms({
+            phoneNumber,
+            message: 'EventVerse: Invalid selection. Please try again.',
+            messageType: 'error',
+          }).catch(err => console.error('SMS send error:', err && err.message || err));
       }
     } else if (steps[0] === '5') {
       if (steps.length === 1) {
@@ -272,23 +382,63 @@ Acc: Your Phone Number`;
 0. Exit`;
       } else if (steps[1] === '1') {
         response = 'END We will call you shortly.';
+        // Send SMS for support callback request (non-blocking)
+        sms.sendUssdSms({
+          phoneNumber,
+          message: 'EventVerse: Your support request has been received. Our team will call you within 24 hours.',
+          messageType: 'support',
+        }).catch(err => console.error('SMS send error:', err && err.message || err));
       } else if (steps[1] === '2') {
         response = 'END Issue reported. Thank you.';
+        // Send SMS for issue report (non-blocking)
+        sms.sendUssdSms({
+          phoneNumber,
+          message: 'EventVerse: Your issue has been recorded. Our support team will contact you shortly. Thank you.',
+          messageType: 'support',
+        }).catch(err => console.error('SMS send error:', err && err.message || err));
       } else {
         response = 'END Invalid option.';
+        // Send SMS for invalid option (non-blocking)
+        sms.sendUssdSms({
+          phoneNumber,
+          message: 'EventVerse: Invalid support option. Please try again.',
+          messageType: 'error',
+        }).catch(err => console.error('SMS send error:', err && err.message || err));
       }
     } else if (steps[0] === '0') {
       response = 'END Thank you for using EventVerse';
+      // Send SMS goodbye message (non-blocking)
+      sms.sendUssdSms({
+        phoneNumber,
+        message: 'EventVerse: Thank you for using our service! Visit us at eventvax.app anytime. Have a great day!',
+        messageType: 'exit',
+      }).catch(err => console.error('SMS send error:', err && err.message || err));
     } else {
       response = 'END Invalid option';
+      // Send SMS for invalid option (non-blocking)
+      sms.sendUssdSms({
+        phoneNumber,
+        message: 'EventVerse: Invalid option. Dial *300*222*2# to start again.',
+        messageType: 'error',
+      }).catch(err => console.error('SMS send error:', err && err.message || err));
     }
 
     res.set('Content-Type', 'text/plain');
     res.send(response);
   } catch (err) {
     console.error('USSD route error:', err);
+    const response = 'END Something went wrong. Try again.';
+    // Send SMS for system error
+    const phoneNumber = req.body?.phoneNumber;
+    if (phoneNumber) {
+      sms.sendUssdSms({
+        phoneNumber,
+        message: 'EventVerse: An unexpected error occurred. Please try again or contact support at +254 700 000 000.',
+        messageType: 'error',
+      }).catch(err => console.error('SMS send error:', err && err.message || err));
+    }
     res.set('Content-Type', 'text/plain');
-    res.send('END Something went wrong. Try again.');
+    res.send(response);
   }
 });
 
